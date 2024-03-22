@@ -5,12 +5,13 @@ import (
 	"os"
 	"time"
 
+	"github.com/Onnywrite/grpc-auth/internal/config/lib/processconfig"
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
 type Config struct {
 	Environment    string        `yaml:"environment" required:"true"`
-	StoragePath    string        `yaml:"storage_path" required:"true"`
+	Conn           string        `yaml:"conn" required:"true"`
 	GRPC           GRPCConfig    `yaml:"grpc"`
 	MigrationsPath string        `yaml:"migrations_path"`
 	TokenTTL       time.Duration `yaml:"token_ttl" env-default:"1h"`
@@ -27,7 +28,7 @@ func MustLoad() *Config {
 	flag.Parse()
 
 	if configPath == "" {
-		configPath = os.Getenv("SSO_CONFIG_PATH")
+		configPath = os.Getenv("CONFIG_PATH")
 	}
 	return MustLoadByPath(configPath)
 }
@@ -42,5 +43,8 @@ func MustLoadByPath(path string) *Config {
 	if err := cleanenv.ReadConfig(path, &cfg); err != nil {
 		panic("config could not be loaded: " + err.Error())
 	}
+
+	processconfig.PrioritizeEnvs(&cfg)
+
 	return &cfg
 }
