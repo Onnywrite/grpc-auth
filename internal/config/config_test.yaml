@@ -1,0 +1,7 @@
+environment: "local"
+conn: "test_conn"
+migrations_path: "./migrations"
+token_ttl: 10h
+grpc:
+  port: 5055
+  timeout: 10h
