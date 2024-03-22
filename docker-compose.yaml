@@ -1,0 +1,33 @@
+version: "3.2"
+name: sso_service
+services:
+    sso:
+      ports:
+        - 8080:8080
+        - 5055:5055
+      environment:
+        - CONFIG_PATH=./configs/local.yaml
+      container_name: sso
+      networks:
+        - pgnet
+      build: .
+    postgres:
+      ports:
+          - 5454:5432
+      environment:
+          - POSTGRES_HOST_AUTH_METHOD=trust
+          - POSTGRES_DB=db_name
+          - POSTGRES_USER=usr
+          - POSTGRES_PASSWORD=pswd
+      container_name: pg
+      hostname: db
+      networks:
+          - pgnet
+      volumes:
+          - pg:/var/lib/postgresql/data
+      image: postgres:16.2-alpine3.19
+networks:
+    pgnet:
+      driver: bridge
+volumes:
+    pg:
