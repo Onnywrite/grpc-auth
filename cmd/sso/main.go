@@ -1,10 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/Onnywrite/grpc-auth/internal/app"
 	"github.com/Onnywrite/grpc-auth/internal/config"
 )
 
@@ -16,10 +18,17 @@ const (
 
 func main() {
 	cfg := config.MustLoad()
-	fmt.Println(cfg)
-	// TODO: logger init
-	// TODO: app init
-	// TODO: run gRPC
+
+	logger := setupLogger(cfg.Environment)
+
+	application := app.New(logger, cfg.Conn, cfg.TokenTTL, cfg.GRPC.Port, cfg.GRPC.Timeout)
+	go application.MustStart()
+
+	shut := make(chan os.Signal, 1)
+	signal.Notify(shut, syscall.SIGTERM, syscall.SIGINT)
+	<-shut
+	application.Stop()
+	logger.Info("gracefully stopped")
 }
 
 func setupLogger(env string) *slog.Logger {

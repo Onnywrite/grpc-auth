@@ -9,16 +9,16 @@ import (
 )
 
 type Config struct {
-	Environment    string        `yaml:"environment" penv:"ENV" required:"true"`
-	Conn           string        `yaml:"conn" penv:"CONN" required:"true"`
+	Environment    string        `yaml:"environment" env:"ENV" required:"true"`
+	Conn           string        `yaml:"conn" env:"CONN" required:"true"`
 	GRPC           GRPCConfig    `yaml:"grpc"`
-	MigrationsPath string        `yaml:"migrations_path" penv:"MIGRATIONS_PATH"`
-	TokenTTL       time.Duration `yaml:"token_ttl" penv:"TOKEN_TTL" env-default:"1h"`
+	MigrationsPath string        `yaml:"migrations_path" env:"MIGRATIONS_PATH"`
+	TokenTTL       time.Duration `yaml:"token_ttl" env:"TOKEN_TTL" env-default:"1h"`
 }
 
 type GRPCConfig struct {
-	Port    int           `yaml:"port" penv:"GRPC_PORT"`
-	Timeout time.Duration `yaml:"timeout" penv:"GRPC_TIMEOUT"`
+	Port    int           `yaml:"port" env:"GRPC_PORT"`
+	Timeout time.Duration `yaml:"timeout" env:"GRPC_TIMEOUT"`
 }
 
 func MustLoad() *Config {
