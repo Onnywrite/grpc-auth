@@ -6,10 +6,10 @@ option go_package = "onnywrite.sso.v1;gen";
 
 service Auth {
   rpc SignUp (SignUpRequest) returns (Token);
-  rpc SignUpLogin (SignUpLoginRequest) returns (Token);
-  rpc SignUpEmail (SignUpEmailRequest) returns (Token);
-  rpc LogInLogin (LogInLoginRequest) returns (Token);
-  rpc LogInEmail (LogInEmailRequest) returns (Token);
+  rpc SignUpWithLogin (SignUpLoginRequest) returns (Token);
+  rpc SignUpWithEmail (SignUpEmailRequest) returns (Token);
+  rpc LogInWithLogin (LogInLoginRequest) returns (Token);
+  rpc LogInWithEmail (LogInEmailRequest) returns (Token);
   rpc LogOut (Token) returns (NullResponse);
 }
 

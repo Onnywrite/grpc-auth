@@ -23,10 +23,10 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AuthClient interface {
 	SignUp(ctx context.Context, in *SignUpRequest, opts ...grpc.CallOption) (*Token, error)
-	SignUpLogin(ctx context.Context, in *SignUpLoginRequest, opts ...grpc.CallOption) (*Token, error)
-	SignUpEmail(ctx context.Context, in *SignUpEmailRequest, opts ...grpc.CallOption) (*Token, error)
-	LogInLogin(ctx context.Context, in *LogInLoginRequest, opts ...grpc.CallOption) (*Token, error)
-	LogInEmail(ctx context.Context, in *LogInEmailRequest, opts ...grpc.CallOption) (*Token, error)
+	SignUpWithLogin(ctx context.Context, in *SignUpLoginRequest, opts ...grpc.CallOption) (*Token, error)
+	SignUpWithEmail(ctx context.Context, in *SignUpEmailRequest, opts ...grpc.CallOption) (*Token, error)
+	LogInWithLogin(ctx context.Context, in *LogInLoginRequest, opts ...grpc.CallOption) (*Token, error)
+	LogInWithEmail(ctx context.Context, in *LogInEmailRequest, opts ...grpc.CallOption) (*Token, error)
 	LogOut(ctx context.Context, in *Token, opts ...grpc.CallOption) (*NullResponse, error)
 }
 
@@ -47,36 +47,36 @@ func (c *authClient) SignUp(ctx context.Context, in *SignUpRequest, opts ...grpc
 	return out, nil
 }
 
-func (c *authClient) SignUpLogin(ctx context.Context, in *SignUpLoginRequest, opts ...grpc.CallOption) (*Token, error) {
+func (c *authClient) SignUpWithLogin(ctx context.Context, in *SignUpLoginRequest, opts ...grpc.CallOption) (*Token, error) {
 	out := new(Token)
-	err := c.cc.Invoke(ctx, "/auth.Auth/SignUpLogin", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/auth.Auth/SignUpWithLogin", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *authClient) SignUpEmail(ctx context.Context, in *SignUpEmailRequest, opts ...grpc.CallOption) (*Token, error) {
+func (c *authClient) SignUpWithEmail(ctx context.Context, in *SignUpEmailRequest, opts ...grpc.CallOption) (*Token, error) {
 	out := new(Token)
-	err := c.cc.Invoke(ctx, "/auth.Auth/SignUpEmail", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/auth.Auth/SignUpWithEmail", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *authClient) LogInLogin(ctx context.Context, in *LogInLoginRequest, opts ...grpc.CallOption) (*Token, error) {
+func (c *authClient) LogInWithLogin(ctx context.Context, in *LogInLoginRequest, opts ...grpc.CallOption) (*Token, error) {
 	out := new(Token)
-	err := c.cc.Invoke(ctx, "/auth.Auth/LogInLogin", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/auth.Auth/LogInWithLogin", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *authClient) LogInEmail(ctx context.Context, in *LogInEmailRequest, opts ...grpc.CallOption) (*Token, error) {
+func (c *authClient) LogInWithEmail(ctx context.Context, in *LogInEmailRequest, opts ...grpc.CallOption) (*Token, error) {
 	out := new(Token)
-	err := c.cc.Invoke(ctx, "/auth.Auth/LogInEmail", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/auth.Auth/LogInWithEmail", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -97,10 +97,10 @@ func (c *authClient) LogOut(ctx context.Context, in *Token, opts ...grpc.CallOpt
 // for forward compatibility
 type AuthServer interface {
 	SignUp(context.Context, *SignUpRequest) (*Token, error)
-	SignUpLogin(context.Context, *SignUpLoginRequest) (*Token, error)
-	SignUpEmail(context.Context, *SignUpEmailRequest) (*Token, error)
-	LogInLogin(context.Context, *LogInLoginRequest) (*Token, error)
-	LogInEmail(context.Context, *LogInEmailRequest) (*Token, error)
+	SignUpWithLogin(context.Context, *SignUpLoginRequest) (*Token, error)
+	SignUpWithEmail(context.Context, *SignUpEmailRequest) (*Token, error)
+	LogInWithLogin(context.Context, *LogInLoginRequest) (*Token, error)
+	LogInWithEmail(context.Context, *LogInEmailRequest) (*Token, error)
 	LogOut(context.Context, *Token) (*NullResponse, error)
 	mustEmbedUnimplementedAuthServer()
 }
@@ -112,17 +112,17 @@ type UnimplementedAuthServer struct {
 func (UnimplementedAuthServer) SignUp(context.Context, *SignUpRequest) (*Token, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SignUp not implemented")
 }
-func (UnimplementedAuthServer) SignUpLogin(context.Context, *SignUpLoginRequest) (*Token, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SignUpLogin not implemented")
+func (UnimplementedAuthServer) SignUpWithLogin(context.Context, *SignUpLoginRequest) (*Token, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignUpWithLogin not implemented")
 }
-func (UnimplementedAuthServer) SignUpEmail(context.Context, *SignUpEmailRequest) (*Token, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SignUpEmail not implemented")
+func (UnimplementedAuthServer) SignUpWithEmail(context.Context, *SignUpEmailRequest) (*Token, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignUpWithEmail not implemented")
 }
-func (UnimplementedAuthServer) LogInLogin(context.Context, *LogInLoginRequest) (*Token, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method LogInLogin not implemented")
+func (UnimplementedAuthServer) LogInWithLogin(context.Context, *LogInLoginRequest) (*Token, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LogInWithLogin not implemented")
 }
-func (UnimplementedAuthServer) LogInEmail(context.Context, *LogInEmailRequest) (*Token, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method LogInEmail not implemented")
+func (UnimplementedAuthServer) LogInWithEmail(context.Context, *LogInEmailRequest) (*Token, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LogInWithEmail not implemented")
 }
 func (UnimplementedAuthServer) LogOut(context.Context, *Token) (*NullResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LogOut not implemented")
@@ -158,74 +158,74 @@ func _Auth_SignUp_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Auth_SignUpLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Auth_SignUpWithLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SignUpLoginRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthServer).SignUpLogin(ctx, in)
+		return srv.(AuthServer).SignUpWithLogin(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/auth.Auth/SignUpLogin",
+		FullMethod: "/auth.Auth/SignUpWithLogin",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).SignUpLogin(ctx, req.(*SignUpLoginRequest))
+		return srv.(AuthServer).SignUpWithLogin(ctx, req.(*SignUpLoginRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Auth_SignUpEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Auth_SignUpWithEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SignUpEmailRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthServer).SignUpEmail(ctx, in)
+		return srv.(AuthServer).SignUpWithEmail(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/auth.Auth/SignUpEmail",
+		FullMethod: "/auth.Auth/SignUpWithEmail",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).SignUpEmail(ctx, req.(*SignUpEmailRequest))
+		return srv.(AuthServer).SignUpWithEmail(ctx, req.(*SignUpEmailRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Auth_LogInLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Auth_LogInWithLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(LogInLoginRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthServer).LogInLogin(ctx, in)
+		return srv.(AuthServer).LogInWithLogin(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/auth.Auth/LogInLogin",
+		FullMethod: "/auth.Auth/LogInWithLogin",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).LogInLogin(ctx, req.(*LogInLoginRequest))
+		return srv.(AuthServer).LogInWithLogin(ctx, req.(*LogInLoginRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Auth_LogInEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Auth_LogInWithEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(LogInEmailRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthServer).LogInEmail(ctx, in)
+		return srv.(AuthServer).LogInWithEmail(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/auth.Auth/LogInEmail",
+		FullMethod: "/auth.Auth/LogInWithEmail",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).LogInEmail(ctx, req.(*LogInEmailRequest))
+		return srv.(AuthServer).LogInWithEmail(ctx, req.(*LogInEmailRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -260,20 +260,20 @@ var Auth_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Auth_SignUp_Handler,
 		},
 		{
-			MethodName: "SignUpLogin",
-			Handler:    _Auth_SignUpLogin_Handler,
+			MethodName: "SignUpWithLogin",
+			Handler:    _Auth_SignUpWithLogin_Handler,
 		},
 		{
-			MethodName: "SignUpEmail",
-			Handler:    _Auth_SignUpEmail_Handler,
+			MethodName: "SignUpWithEmail",
+			Handler:    _Auth_SignUpWithEmail_Handler,
 		},
 		{
-			MethodName: "LogInLogin",
-			Handler:    _Auth_LogInLogin_Handler,
+			MethodName: "LogInWithLogin",
+			Handler:    _Auth_LogInWithLogin_Handler,
 		},
 		{
-			MethodName: "LogInEmail",
-			Handler:    _Auth_LogInEmail_Handler,
+			MethodName: "LogInWithEmail",
+			Handler:    _Auth_LogInWithEmail_Handler,
 		},
 		{
 			MethodName: "LogOut",
