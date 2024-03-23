@@ -10,8 +10,8 @@ protoc:
 build:
 	rm -rf bin
 	go build -o ./bin/sso ./cmd/sso/main.go
-	ln -s ./configs configs
-	ln -s ./storage storage
+	cp -r configs/ ./bin/
+	cp -r storage/ ./bin/
 
 run: build
-	./bin/sso
+	./bin/sso --config-path=./configs/local.yaml
