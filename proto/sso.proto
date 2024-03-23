@@ -5,31 +5,42 @@ package auth;
 option go_package = "onnywrite.sso.v1;gen";
 
 service Auth {
-  rpc Register (RegisterRequest) returns (RegisterResponse);
-  rpc Login (LoginRequest) returns (LoginResponse);
-  rpc Logout (LogoutRequest) returns (NullResponse);
+  rpc SignUp (SignUpRequest) returns (Token);
+  rpc SignUpLogin (SignUpLoginRequest) returns (Token);
+  rpc SignUpEmail (SignUpEmailRequest) returns (Token);
+  rpc LogInLogin (LogInLoginRequest) returns (Token);
+  rpc LogInEmail (LogInEmailRequest) returns (Token);
+  rpc LogOut (Token) returns (NullResponse);
 }
 
-message RegisterRequest {
-  optional string login = 1;
-  optional string email = 2;
+message SignUpRequest {
+  string login = 1;
+  string email = 2;
   string password = 3;
   int64 app_id = 4;
 }
-message RegisterResponse {
-  string token = 1;
+message SignUpLoginRequest {
+  string login = 1;
+  string password = 2;
+  int64 app_id = 3;
+}
+message SignUpEmailRequest {
+  string email = 1;
+  string password = 2;
+  int64 app_id = 3;
 }
 
-message LoginRequest {
-  optional string login = 1;
-  optional string email = 2;
-  string password = 3;
+message LogInLoginRequest {
+  string login = 1;
+  string password = 2;
 }
-message LoginResponse {
-  string token = 1;
+message LogInEmailRequest {
+  string email = 1;
+  string password = 2;
 }
 
-message LogoutRequest {
-  string token = 1;
-}
 message NullResponse {}
+
+message Token {
+  string token = 1;
+}
