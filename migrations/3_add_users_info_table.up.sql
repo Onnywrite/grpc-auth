@@ -5,3 +5,5 @@ CREATE TABLE IF NOT EXISTS users_info (
     info VARCHAR(1024) NOT NULL,
     UNIQUE(info_type_fk, service_fk, info)
 );
+
+CREATE INDEX user_fk_idx ON users_info (user_fk);
