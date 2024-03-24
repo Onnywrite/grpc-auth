@@ -1,46 +1,16 @@
 syntax = "proto3";
+import "sso_messages.proto";
 
 package auth;
 
 option go_package = "onnywrite.sso.v1;gen";
 
 service Auth {
-  rpc SignUp (SignUpRequest) returns (Token);
-  rpc SignUpWithLogin (SignUpLoginRequest) returns (Token);
-  rpc SignUpWithEmail (SignUpEmailRequest) returns (Token);
-  rpc LogInWithLogin (LogInLoginRequest) returns (Token);
-  rpc LogInWithEmail (LogInEmailRequest) returns (Token);
-  rpc LogOut (Token) returns (NullResponse);
+  rpc Register(RegisterRequest) returns (NullResponse);
+  rpc SignUp(SignUpRequest) returns (Token);
+  rpc LogIn(LogInRequest) returns (Token);
+  rpc LogOut(Token) returns (NullResponse);
 }
 
-message SignUpRequest {
-  string login = 1;
-  string email = 2;
-  string password = 3;
-  int64 app_id = 4;
-}
-message SignUpLoginRequest {
-  string login = 1;
-  string password = 2;
-  int64 app_id = 3;
-}
-message SignUpEmailRequest {
-  string email = 1;
-  string password = 2;
-  int64 app_id = 3;
-}
-
-message LogInLoginRequest {
-  string login = 1;
-  string password = 2;
-}
-message LogInEmailRequest {
-  string email = 1;
-  string password = 2;
-}
-
-message NullResponse {}
-
-message Token {
-  string token = 1;
-}
+service Roles { rpc Role(UserId) returns (NullResponse); }
+message UserId { int64 id = 1; }

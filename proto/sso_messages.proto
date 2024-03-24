@@ -1,0 +1,31 @@
+syntax = "proto3";
+package auth;
+
+option go_package = "onnywrite.sso.v1;gen";
+
+message RegisterRequest {
+  oneof user_login {
+    string login = 1;
+    string email = 2;
+    string phone = 3;
+  }
+  string password = 4;
+}
+
+message SignUpRequest {
+  RegisterRequest registration_data = 1;
+  string app_token = 2;
+}
+
+message LogInRequest {
+  oneof user_login {
+    string login = 1;
+    string email = 2;
+    string phone = 3;
+  }
+  string password = 4;
+}
+
+message NullResponse {}
+
+message Token { string token = 1; }
