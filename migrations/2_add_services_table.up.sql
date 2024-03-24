@@ -5,3 +5,5 @@ CREATE TABLE IF NOT EXISTS services (
     deleted_at DATE DEFAULT NULL,
     UNIQUE(owner_fk, name)
 );
+
+CREATE INDEX owner_fk_idx ON services (owner_fk);
