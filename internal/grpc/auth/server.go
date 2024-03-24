@@ -8,10 +8,12 @@ import (
 )
 
 type AuthService interface {
-	SignUp(ctx context.Context, login, email, password string) (token string, err error)
-	SignUpLogin(ctx context.Context, login, password string) (token string, err error)
-	SignUpEmail(ctx context.Context, email, password string) (token string, err error)
-	LogIn(ctx context.Context, loginOrEmail, password string) (token string, err error)
+	SignUpWithLogin(ctx context.Context, login, appToken string) (token string, err error)
+	SignUpWithEmail(ctx context.Context, email, appToken string) (token string, err error)
+	SignUpWithPhone(ctx context.Context, phone, appToken string) (token string, err error)
+	LogInWithLogin(ctx context.Context, login, password string) (token string, err error)
+	LogInWithEmail(ctx context.Context, email, password string) (token string, err error)
+	LogInWithPassword(ctx context.Context, phone, password string) (token string, err error)
 	Logout(ctx context.Context, token string) error
 }
 
