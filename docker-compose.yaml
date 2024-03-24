@@ -1,35 +1,52 @@
 version: "3.2"
 name: sso_service
 services:
-    postgres:
-      ports:
-          - 5432:5432
-      environment:
-          - POSTGRES_DB=sso
-          - POSTGRES_USER=usr
-          - POSTGRES_PASSWORD=pswd
-      container_name: pg
-      hostname: db
-      networks:
-          - pgnet
-      volumes:
-          - pg:/var/lib/postgresql/data
-      image: postgres:16.2-alpine3.19
-    sso:
-      depends_on:
-        - postgres
-      ports:
-        - 8080:8080
-        - 5055:5055
-      environment:
-        - CONFIG_PATH=./configs/local.yaml
-        - CONN=postgres://usr:pswd@db:5432/sso
-      container_name: sso
-      networks:
-        - pgnet
-      build: .
+  postgres:
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_DB=sso
+      - POSTGRES_USER=usr
+      - POSTGRES_PASSWORD=pswd
+    container_name: pg
+    hostname: db
+    networks:
+      - pgnet
+    volumes:
+      - pg:/var/lib/postgresql/data
+    image: postgres:16.2-alpine3.19
+  migrate:
+    depends_on:
+      - postgres
+    networks:
+      - pgnet
+    volumes:
+      - .:/migrations
+    command:
+      [
+        "-path",
+        "/migrations",
+        "-database",
+        "postgres://usr:pswd@db:5432/sso",
+        "up"
+      ]
+    image: migrate/migrate
+  sso:
+    depends_on:
+      - postgres
+      - migrate
+    ports:
+      - 8080:8080
+      - 5055:5055
+    environment:
+      - CONFIG_PATH=./configs/local.yaml
+      - CONN=postgres://usr:pswd@db:5432/sso
+    container_name: sso
+    networks:
+      - pgnet
+    build: .
 networks:
-    pgnet:
-      driver: bridge
+  pgnet:
+    driver: bridge
 volumes:
-    pg:
+  pg:
