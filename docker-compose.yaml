@@ -21,13 +21,13 @@ services:
     networks:
       - pgnet
     volumes:
-      - .:/migrations
+      - ./migrations:/migrations
     command:
       [
         "-path",
         "/migrations",
         "-database",
-        "postgres://usr:pswd@db:5432/sso",
+        "postgres://usr:pswd@db:5432/sso?sslmode=disable",
         "up"
       ]
     image: migrate/migrate
