@@ -2,6 +2,7 @@ package app
 
 import (
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/Onnywrite/grpc-auth/internal/storage"
@@ -21,6 +22,7 @@ func New(logger *slog.Logger, conn string, tokenTTL time.Duration, grpcPort int,
 		logger.Error("could not connect to pg database",
 			slog.String("op", op),
 			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 
 	//authService := auth.New(...)
