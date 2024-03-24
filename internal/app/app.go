@@ -3,15 +3,25 @@ package app
 import (
 	"log/slog"
 	"time"
+
+	"github.com/Onnywrite/grpc-auth/internal/storage"
 )
 
 type App struct {
 	log  *slog.Logger
 	grpc *GRPCApp
+	db   *storage.Pg
 }
 
 func New(logger *slog.Logger, conn string, tokenTTL time.Duration, grpcPort int, grpcTimeout time.Duration) *App {
-	// create new database for authService...
+	const op = "app.New"
+
+	db, err := storage.NewPg(conn)
+	if err != nil {
+		logger.Error("could not connect to pg database",
+			slog.String("op", op),
+			slog.String("err", err.Error()))
+	}
 
 	//authService := auth.New(...)
 
@@ -20,6 +30,7 @@ func New(logger *slog.Logger, conn string, tokenTTL time.Duration, grpcPort int,
 	return &App{
 		grpc: app,
 		log:  logger,
+		db:   db,
 	}
 }
 
@@ -46,4 +57,12 @@ func (a *App) Stop() {
 	a.log.Info("stopping application", slog.String("op", op))
 
 	a.grpc.Stop()
+
+	if err := a.db.Stop(); err != nil {
+		a.log.Error("could not disconnect from pg database",
+			slog.String("op", op),
+			slog.String("err", err.Error()))
+		return
+	}
+	a.log.Info("successfully disconnected from pg database", slog.String("op", op))
 }
