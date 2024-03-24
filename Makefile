@@ -1,11 +1,11 @@
 GEN=./gen
 PROTOPATH=./proto
-SSOPROTO=sso.proto
+SSOPROTOS=sso.proto sso_messages.proto
 
 protoc:
 	protoc --go_out=${GEN} --go_opt=paths=source_relative \
     --go-grpc_out=${GEN} --go-grpc_opt=paths=source_relative \
-	--proto_path=${PROTOPATH} ${SSOPROTO}
+	--proto_path=${PROTOPATH} ${SSOPROTOS}
 
 build:
 	rm -rf bin
