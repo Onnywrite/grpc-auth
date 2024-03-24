@@ -58,7 +58,7 @@ func (a *App) Stop() {
 
 	a.grpc.Stop()
 
-	if err := a.db.Stop(); err != nil {
+	if err := a.db.Disconnect(); err != nil {
 		a.log.Error("could not disconnect from pg database",
 			slog.String("op", op),
 			slog.String("err", err.Error()))

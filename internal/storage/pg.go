@@ -24,6 +24,6 @@ func NewPg(conn string) (*Pg, error) {
 	}, nil
 }
 
-func (pg *Pg) Stop() error {
+func (pg *Pg) Disconnect() error {
 	return pg.db.Close()
 }
