@@ -15,3 +15,8 @@ build:
 
 run: build
 	./bin/sso --config-path=./configs/local.yaml
+
+pgadmin:
+	sudo docker run --rm -tip 5000:80 \
+	-e PGADMIN_DEFAULT_EMAIL=admin@gmail.com -e PGADMIN_DEFAULT_PASSWORD=admin \
+	--network sso_service_pgnet dpage/pgadmin4
