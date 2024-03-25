@@ -5,19 +5,19 @@ import (
 	"os"
 	"time"
 
-	"github.com/Onnywrite/grpc-auth/internal/storage"
+	"github.com/Onnywrite/grpc-auth/internal/storage/postgres"
 )
 
 type App struct {
 	log  *slog.Logger
 	grpc *GRPCApp
-	db   *storage.Pg
+	db   *postgres.Pg
 }
 
 func New(logger *slog.Logger, conn string, tokenTTL time.Duration, grpcPort int, grpcTimeout time.Duration) *App {
 	const op = "app.New"
 
-	db, err := storage.NewPg(conn)
+	db, err := postgres.NewPg(conn)
 	if err != nil {
 		logger.Error("could not connect to pg database",
 			slog.String("op", op),
