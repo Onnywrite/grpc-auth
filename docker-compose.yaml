@@ -15,6 +15,7 @@ services:
     volumes:
       - pg:/var/lib/postgresql/data
     image: postgres:16.2-alpine3.19
+    user: postgres
     healthcheck:
       test:
         [
