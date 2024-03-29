@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Onnywrite/grpc-auth/internal/lib/pgxerr"
+	"github.com/Onnywrite/grpc-auth/internal/lib/sqlf"
 	"github.com/Onnywrite/grpc-auth/internal/models"
 	"github.com/Onnywrite/grpc-auth/internal/storage"
 	"github.com/jackc/pgerrcode"
@@ -13,10 +14,12 @@ import (
 func (pg *Pg) SaveUser(ctx context.Context, user *models.User) (*models.SavedUser, error) {
 	const op = "postgres.Pg.SaveUser"
 
-	result, err := pg.db.ExecContext(ctx, fmt.Sprintf(
-		`INSERT INTO users (login, email, phone, password) VALUES ('%s','%s','%s','%s');`,
-		user.Login, user.Email, user.Phone, user.Password))
-
+	row := pg.db.QueryRowxContext(ctx,
+		sqlf.SQLFormat(`INSERT INTO users (login, email, phone, password)
+		VALUES (%s, %s, %s, %s)
+		RETURNING user_id, login, email, phone`,
+			user.Login, user.Email, user.Phone, user.Password))
+	err := row.Err()
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
 		return nil, storage.ErrUserExists
 	}
@@ -24,10 +27,38 @@ func (pg *Pg) SaveUser(ctx context.Context, user *models.User) (*models.SavedUse
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	id, err := result.LastInsertId()
+	u := &models.SavedUser{}
+	err = row.StructScan(u)
 	if err != nil {
 		return nil, err
 	}
 
-	return user.Saved(id), nil
+	return u, nil
+}
+
+func (pg *Pg) UserById(ctx context.Context, id int) (u *models.SavedUser, err error) {
+	return pg.userBy(ctx, "id", id)
+}
+
+func (pg *Pg) UserByLogin(ctx context.Context, login string) (u *models.SavedUser, err error) {
+	return pg.userBy(ctx, "login", login)
+}
+
+func (pg *Pg) UserByEmail(ctx context.Context, email string) (u *models.SavedUser, err error) {
+	return pg.userBy(ctx, "email", email)
+}
+
+func (pg *Pg) UserByPhone(ctx context.Context, phone string) (u *models.SavedUser, err error) {
+	return pg.userBy(ctx, "phone", phone)
+}
+
+func (pg *Pg) userBy(ctx context.Context, prop string, val any) (*models.SavedUser, error) {
+	u := &models.SavedUser{}
+	err := pg.db.GetContext(ctx, u,
+		sqlf.SQLFormat(fmt.Sprintf(`SELECT user_id, login, email, phone
+			FROM users WHERE %s`, prop)+`= %s`, val))
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
 }
