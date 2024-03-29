@@ -7,6 +7,6 @@ CREATE TABLE IF NOT EXISTS users (
     deleted_at DATE DEFAULT NULL
 );
 
-CREATE UNIQUE INDEX CONCURRENTLY login_idx ON users (login);
-CREATE INDEX CONCURRENTLY email_idx ON users (email);
-CREATE INDEX CONCURRENTLY phone_idx ON users (phone);
+CREATE UNIQUE INDEX login_idx ON users (login);
+CREATE INDEX email_idx ON users (email);
+CREATE INDEX phone_idx ON users (phone);
