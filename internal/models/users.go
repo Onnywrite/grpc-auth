@@ -9,17 +9,8 @@ type User struct {
 }
 
 type SavedUser struct {
-	Id    int64
+	Id    int64 `db:"user_id"`
 	Login string
-	Email string
-	Phone string
-}
-
-func (u *User) Saved(id int64) *SavedUser {
-	return &SavedUser{
-		Id:    id,
-		Login: u.Login,
-		Email: u.Email,
-		Phone: u.Phone,
-	}
+	Email *string // to enable nullability
+	Phone *string // to enable nullability
 }
