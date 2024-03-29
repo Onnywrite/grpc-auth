@@ -37,7 +37,7 @@ func (pg *Pg) SaveUser(ctx context.Context, user *models.User) (*models.SavedUse
 }
 
 func (pg *Pg) UserById(ctx context.Context, id int) (u *models.SavedUser, err error) {
-	return pg.userBy(ctx, "id", id)
+	return pg.userBy(ctx, "user_id", id)
 }
 
 func (pg *Pg) UserByLogin(ctx context.Context, login string) (u *models.SavedUser, err error) {
@@ -53,12 +53,20 @@ func (pg *Pg) UserByPhone(ctx context.Context, phone string) (u *models.SavedUse
 }
 
 func (pg *Pg) userBy(ctx context.Context, prop string, val any) (*models.SavedUser, error) {
+	const op = "postgres.Pg.userBy"
+
 	u := &models.SavedUser{}
 	err := pg.db.GetContext(ctx, u,
 		sqlf.SQLFormat(fmt.Sprintf(`SELECT user_id, login, email, phone
-			FROM users WHERE %s`, prop)+`= %s`, val))
+			FROM users WHERE %s`, prop)+`= %s`, val),
+	)
+
 	if err != nil {
-		return nil, err
+		if err.Error() == "sql: no rows in result set" {
+			return nil, storage.ErrUserNotFound
+		}
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
+
 	return u, nil
 }
