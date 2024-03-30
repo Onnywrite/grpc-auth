@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/Onnywrite/grpc-auth/internal/lib/pgxerr"
@@ -62,7 +64,7 @@ func (pg *Pg) userBy(ctx context.Context, prop string, val any) (*models.SavedUs
 	)
 
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, storage.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("%s: %w", op, err)
