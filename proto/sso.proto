@@ -6,10 +6,10 @@ package auth;
 option go_package = "onnywrite.sso.v1;gen";
 
 service Auth {
-  rpc SignUp(SignUpRequest) returns (Token);
-  rpc LogIn(LogInRequest) returns (Token);
+  rpc SignUp(AuthRequest) returns (Token);
+  rpc LogIn(AuthRequest) returns (Token);
   rpc LogOut(Token) returns (NullResponse);
 }
 
-service Roles { rpc Role(UserId) returns (NullResponse); }
-message UserId { int64 id = 1; }
+// service Roles { rpc Role(UserId) returns (NullResponse); }
+// message UserId { int64 id = 1; }
