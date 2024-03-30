@@ -19,7 +19,7 @@ func (pg *Pg) SaveUser(ctx context.Context, user *models.User) (*models.SavedUse
 	row := pg.db.QueryRowxContext(ctx,
 		sqlf.SQLFormat(`INSERT INTO users (login, email, phone, password)
 		VALUES (%s, %s, %s, %s)
-		RETURNING user_id, login, email, phone`,
+		RETURNING user_id, login, email, phone, password`,
 			user.Login, user.Email, user.Phone, user.Password))
 	err := row.Err()
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
@@ -59,7 +59,7 @@ func (pg *Pg) userBy(ctx context.Context, prop string, val any) (*models.SavedUs
 
 	u := &models.SavedUser{}
 	err := pg.db.GetContext(ctx, u,
-		sqlf.SQLFormat(fmt.Sprintf(`SELECT user_id, login, email, phone
+		sqlf.SQLFormat(fmt.Sprintf(`SELECT user_id, login, email, phone, password
 			FROM users WHERE %s`, prop)+`= %s`, val),
 	)
 

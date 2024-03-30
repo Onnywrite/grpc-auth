@@ -9,8 +9,9 @@ type User struct {
 }
 
 type SavedUser struct {
-	Id    int64 `db:"user_id"`
-	Login string
-	Email *string // to enable nullability
-	Phone *string // to enable nullability
+	Id       int64 `db:"user_id"`
+	Login    string
+	Email    *string // to enable nullability
+	Phone    *string // to enable nullability
+	Password string
 }
