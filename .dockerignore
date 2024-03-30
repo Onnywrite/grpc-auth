@@ -1,5 +1,9 @@
 ignore-*
-proto
+/proto/
+Makefile
+Taskfile.yaml
 bin
 .git
 .gitignore
+/tests/
+/migrations/

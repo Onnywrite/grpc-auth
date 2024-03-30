@@ -1,4 +1,4 @@
 ignore-*
 bin
-storage
+/storage/
 configs/local.yaml

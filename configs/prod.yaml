@@ -1,0 +1,7 @@
+environment: "prod"
+conn: "postgres://usr:pswd@db:5432/sso"
+migrations_path: "./migrations"
+token_ttl: 1h
+grpc:
+  port: 5055
+  timeout: 5s
