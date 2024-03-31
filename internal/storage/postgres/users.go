@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/Onnywrite/grpc-auth/internal/lib/pgxerr"
 	"github.com/Onnywrite/grpc-auth/internal/models"
 	"github.com/Onnywrite/grpc-auth/internal/storage"
@@ -15,15 +16,21 @@ import (
 func (pg *Pg) SaveUser(ctx context.Context, user *models.User) (*models.SavedUser, error) {
 	const op = "postgres.Pg.SaveUser"
 
-	stmt, err := pg.db.PreparexContext(ctx,
-		`INSERT INTO users (login, email, phone, password)
-		VALUES ($1, $2, $3, $4)
-		RETURNING user_id, login, email, phone, password`)
+	s, args, err := sq.Insert("users").Columns("login", "email", "phone", "password").
+		Values(user.Login, user.Email, user.Phone, user.Password).
+		Suffix(`RETURNING user_id, login, email, phone, password`).
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+		return nil, fmt.Errorf("squirrel %s: %w", op, err)
 	}
 
-	row := stmt.QueryRowxContext(ctx, user.Login, user.Email, user.Phone, user.Password)
+	stmt, err := pg.db.PreparexContext(ctx, s)
+	if err != nil {
+		return nil, fmt.Errorf("preparex %s: %w", op, err)
+	}
+
+	row := stmt.QueryRowxContext(ctx, args...)
 	err = row.Err()
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
 		return nil, storage.ErrUserExists
@@ -60,13 +67,22 @@ func (pg *Pg) UserByPhone(ctx context.Context, phone string) (u *models.SavedUse
 func (pg *Pg) userBy(ctx context.Context, prop string, val any) (*models.SavedUser, error) {
 	const op = "postgres.Pg.userBy"
 
-	stmt, err := pg.db.PreparexContext(ctx, fmt.Sprintf(
-		`SELECT user_id, login, email, phone, password FROM users WHERE %s = $1`, prop))
+	s, args, err := sq.Select("user_id", "login", "email", "phone", "password").
+		From("users").
+		Where(sq.Eq{prop: val}).
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+		return nil, fmt.Errorf("squirrel %s: %w", op, err)
 	}
+
+	stmt, err := pg.db.PreparexContext(ctx, s)
+	if err != nil {
+		return nil, fmt.Errorf("preparex %s: %w", op, err)
+	}
+
 	u := &models.SavedUser{}
-	err = stmt.GetContext(ctx, u, val)
+	err = stmt.GetContext(ctx, u, args)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
