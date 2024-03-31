@@ -2,9 +2,9 @@ package models
 
 // TODO: add validation
 type User struct {
-	Login    string
-	Email    string
-	Phone    string
+	Login    *string
+	Email    *string
+	Phone    *string
 	Password string
 }
 
