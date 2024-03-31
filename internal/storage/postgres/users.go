@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/Onnywrite/grpc-auth/internal/lib/pgxerr"
-	"github.com/Onnywrite/grpc-auth/internal/lib/sqlf"
 	"github.com/Onnywrite/grpc-auth/internal/models"
 	"github.com/Onnywrite/grpc-auth/internal/storage"
 	"github.com/jackc/pgerrcode"
@@ -16,12 +15,16 @@ import (
 func (pg *Pg) SaveUser(ctx context.Context, user *models.User) (*models.SavedUser, error) {
 	const op = "postgres.Pg.SaveUser"
 
-	row := pg.db.QueryRowxContext(ctx,
-		sqlf.SQLFormat(`INSERT INTO users (login, email, phone, password)
-		VALUES (%s, %s, %s, %s)
-		RETURNING user_id, login, email, phone, password`,
-			user.Login, user.Email, user.Phone, user.Password))
-	err := row.Err()
+	stmt, err := pg.db.PreparexContext(ctx,
+		`INSERT INTO users (login, email, phone, password)
+		VALUES ($1, $2, $3, $4)
+		RETURNING user_id, login, email, phone, password`)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	row := stmt.QueryRowxContext(ctx, user.Login, user.Email, user.Phone, user.Password)
+	err = row.Err()
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
 		return nil, storage.ErrUserExists
 	}
@@ -32,13 +35,13 @@ func (pg *Pg) SaveUser(ctx context.Context, user *models.User) (*models.SavedUse
 	u := &models.SavedUser{}
 	err = row.StructScan(u)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	return u, nil
 }
 
-func (pg *Pg) UserById(ctx context.Context, id int) (u *models.SavedUser, err error) {
+func (pg *Pg) UserById(ctx context.Context, id int64) (u *models.SavedUser, err error) {
 	return pg.userBy(ctx, "user_id", id)
 }
 
@@ -57,11 +60,13 @@ func (pg *Pg) UserByPhone(ctx context.Context, phone string) (u *models.SavedUse
 func (pg *Pg) userBy(ctx context.Context, prop string, val any) (*models.SavedUser, error) {
 	const op = "postgres.Pg.userBy"
 
+	stmt, err := pg.db.PreparexContext(ctx, fmt.Sprintf(
+		`SELECT user_id, login, email, phone, password FROM users WHERE %s = $1`, prop))
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
 	u := &models.SavedUser{}
-	err := pg.db.GetContext(ctx, u,
-		sqlf.SQLFormat(fmt.Sprintf(`SELECT user_id, login, email, phone, password
-			FROM users WHERE %s`, prop)+`= %s`, val),
-	)
+	err = stmt.GetContext(ctx, u, val)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
