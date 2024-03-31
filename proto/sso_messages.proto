@@ -3,19 +3,12 @@ package auth;
 
 option go_package = "onnywrite.sso.v1;gen";
 
-message SignUpRequest {
+message AuthRequest {
   optional string login = 1;
   optional string email = 2;
   optional string phone = 3;
   string password = 4;
-  string app_token = 5;
-}
-
-message LogInRequest {
-  optional string login = 1;
-  optional string email = 2;
-  optional string phone = 3;
-  string password = 4;
+  int64 service_id = 5;
 }
 
 message NullResponse {}

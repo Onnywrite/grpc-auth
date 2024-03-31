@@ -20,3 +20,9 @@ pgadmin:
 	sudo docker run --rm -tip 5000:80 \
 	-e PGADMIN_DEFAULT_EMAIL=admin@gmail.com -e PGADMIN_DEFAULT_PASSWORD=admin \
 	--network sso_service_pgnet dpage/pgadmin4
+
+testdb_up:
+	docker-compose -f ./test-compose.yaml up -d
+
+testdb_down:
+	docker-compose -f ./test-compose.yaml down

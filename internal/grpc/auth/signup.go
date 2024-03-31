@@ -8,6 +8,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (authServerImpl) SignUp(context.Context, *gen.SignUpRequest) (*gen.Token, error) {
+func (authServerImpl) SignUp(context.Context, *gen.AuthRequest) (*gen.Token, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method is not implemented")
 }
