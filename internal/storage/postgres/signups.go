@@ -20,15 +20,16 @@ func (pg *Pg) SaveSignup(ctx context.Context, signup models.Signup) error {
 		PlaceholderFormat(sq.Dollar).
 		RunWith(pg.db).
 		ExecContext(ctx)
-	if err != nil {
-		return fmt.Errorf("%s: %w", op, err)
-	}
 
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
 		return storage.ErrSignupExists
 	}
 	if pgxerr.Is(err, pgerrcode.ForeignKeyViolation) {
 		return storage.ErrNoSuchPrimaryKey
+	}
+
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	return nil
