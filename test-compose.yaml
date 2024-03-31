@@ -1,0 +1,49 @@
+version: "3.2"
+name: sso_db_test
+services:
+  postgres_test:
+    ports:
+      - 5454:5432
+    environment:
+      - POSTGRES_DB=sso
+      - POSTGRES_USER=usr
+      - POSTGRES_PASSWORD=pswd
+    container_name: pg_test
+    hostname: db_test
+    networks:
+      - pgnet_test
+    image: postgres:16.2-alpine3.19
+    user: postgres
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready",
+          "-d",
+          "$POSTGRES_DB",
+          "-U",
+          "$POSTGRES_USER"
+        ]
+      interval: 2s
+      timeout: 2s
+      retries: 8
+  migrate_test:
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+    networks:
+      - pgnet_test
+    volumes:
+      - ./migrations:/migrations
+    command:
+      [
+        "-path",
+        "/migrations",
+        "-database",
+        "postgres://usr:pswd@db_test:5432/sso?sslmode=disable",
+        "up"
+      ]
+    image: migrate/migrate
+networks:
+  pgnet_test:
+    driver: bridge
