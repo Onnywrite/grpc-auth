@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS sessions;
+DROP INDEX IS EXISTS signup_fk_idx
