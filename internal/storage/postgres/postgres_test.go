@@ -43,10 +43,6 @@ func TestSaveUser(t *testing.T) {
 	ctxx, c := context.WithTimeout(context.Background(), time.Second)
 	defer c()
 
-	ptr := func(s string) *string {
-		return &s
-	}
-
 	tests := []struct {
 		name   string
 		ctx    context.Context
@@ -57,7 +53,7 @@ func TestSaveUser(t *testing.T) {
 			name: "success",
 			ctx:  ctxx,
 			user: &models.User{
-				Login:    ptr("random login"),
+				Login:    "random login",
 				Email:    nil,
 				Phone:    nil,
 				Password: "random",
@@ -68,7 +64,7 @@ func TestSaveUser(t *testing.T) {
 			name: "exists",
 			ctx:  ctxx,
 			user: &models.User{
-				Login:    ptr("random login"),
+				Login:    "random login",
 				Email:    nil,
 				Phone:    nil,
 				Password: "random",
