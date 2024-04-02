@@ -12,14 +12,12 @@ type Storage interface {
 	SaveUser(ctx context.Context, user *models.User) (*models.SavedUser, error)
 	SaveSignup(ctx context.Context, signup models.Signup) error
 
-	UserById(ctx context.Context, id int64) (u *models.SavedUser, err error)
-	UserByLogin(ctx context.Context, login string) (u *models.SavedUser, err error)
-	UserByEmail(ctx context.Context, email string) (u *models.SavedUser, err error)
-	UserByPhone(ctx context.Context, phone string) (u *models.SavedUser, err error)
-	// change models.SavedUser to models.SavedSignup
-	//SignupByLogin(ctx context.Context, login string, serviceId int64) (u *models.SavedUser, err error)
-	//SignupByEmail(ctx context.Context, email string, serviceId int64) (u *models.SavedUser, err error)
-	//SignupByPhone(ctx context.Context, phone string, serviceId int64) (u *models.SavedUser, err error)
+	UserById(ctx context.Context, id int64) (*models.SavedUser, error)
+	UserByLogin(ctx context.Context, login string) (*models.SavedUser, error)
+	UserByEmail(ctx context.Context, email string) (*models.SavedUser, error)
+	UserByPhone(ctx context.Context, phone string) (*models.SavedUser, error)
+
+	Signup(ctx context.Context, userId, serviceId int64) (*models.SavedSignup, error)
 }
 
 type AuthServiceImpl struct {
