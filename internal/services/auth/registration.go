@@ -13,6 +13,7 @@ import (
 	"github.com/Onnywrite/grpc-auth/internal/storage"
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -188,13 +189,20 @@ func (a *AuthServiceImpl) LogOut(ctx context.Context, refresh string) error {
 	const op = "auth.AuthServiceImpl.LogOut"
 	log := a.log.With(slog.String("op", op))
 
-	token, err := a.processToken(refresh)
+	token, err := a.processRefreshToken(refresh)
 	if err != nil {
-		log.Error("could not process token", slog.String("token", refresh))
+		log.Error("could not process token", slog.String("token", refresh), slog.String("error", err.Error()))
 		return ErrUnauthorized
 	}
+	log = log.With(slog.String("session_uuid", token.SessionUUID.String()))
 
-	
+	err = a.db.DeleteSession(ctx, token.SessionUUID)
+	if err != nil {
+		log.Error("could not delete session", slog.String("error", err.Error()))
+		// TODO:
+		return errors.New("TODO")
+	}
+
 	return nil
 }
 
@@ -233,7 +241,7 @@ var (
 	ErrTokenExpired            = errors.New("token has expired")
 )
 
-func (a *AuthServiceImpl) processToken(tkn string) (*models.AccessToken, error) {
+func (a *AuthServiceImpl) processAccessToken(tkn string) (*models.AccessToken, error) {
 	token, err := jwt.Parse(tkn, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, ErrUnexpectedSigningMethod
@@ -253,7 +261,7 @@ func (a *AuthServiceImpl) processToken(tkn string) (*models.AccessToken, error) 
 			return nil, ErrTokenExpired
 		}
 
-		id, ok := claims["id"].(int64)
+		id, ok := claims["id"].(float64)
 		if !ok {
 			return nil, fmt.Errorf("could not convert 'id' to int64")
 		}
@@ -261,7 +269,7 @@ func (a *AuthServiceImpl) processToken(tkn string) (*models.AccessToken, error) 
 		if !ok {
 			return nil, fmt.Errorf("could not convert 'login' to string")
 		}
-		serviceId, ok := claims["service_id"].(int64)
+		serviceId, ok := claims["service_id"].(float64)
 		if !ok {
 			return nil, fmt.Errorf("could not convert 'service_id' to int64")
 		}
@@ -269,11 +277,59 @@ func (a *AuthServiceImpl) processToken(tkn string) (*models.AccessToken, error) 
 		if !ok {
 			return nil, fmt.Errorf("could not convert 'roles' to []string")
 		}
+
 		token := &models.AccessToken{
-			Id:        id,
+			Id:        int64(id),
 			Login:     login,
-			ServiceId: serviceId,
+			ServiceId: int64(serviceId),
 			Roles:     roles,
+			Exp:       int64(exp),
+		}
+
+		return token, nil
+	}
+
+	return nil, err
+}
+
+func (a *AuthServiceImpl) processRefreshToken(tkn string) (*models.RefreshToken, error) {
+	const op = "auth.AuthServiceImpl.processRefreshToken"
+	log := a.log.With(slog.String("op", op))
+
+	token, err := jwt.Parse(tkn, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, ErrUnexpectedSigningMethod
+		}
+
+		return []byte(goos.Getenv(tokenEnv)), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		exp := claims["exp"].(float64)
+
+		if float64(time.Now().Unix()) > exp {
+			return nil, ErrTokenExpired
+		}
+
+		sessionUUIDStr, ok := claims["session_uuid"].(string)
+		if !ok {
+			log.Error("could not convert 'session_uuid' to uuid.UUID")
+			return nil, ErrInternal
+		}
+		sessionUUID, err := uuid.Parse(sessionUUIDStr)
+		if err != nil {
+			log.Error("could not convert 'session_uuid' to uuid.UUID",
+				slog.String("session_uuid_str", sessionUUIDStr))
+			return nil, ErrInternal
+		}
+
+		token := &models.RefreshToken{
+			SessionUUID: sessionUUID,
+			Exp:         int64(exp),
 		}
 
 		return token, nil
