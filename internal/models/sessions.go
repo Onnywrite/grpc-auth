@@ -21,5 +21,5 @@ type SavedSession struct {
 	Browser   string
 	OS        string
 	CreatedAt time.Time `db:"at"`
-	ClosedAt  time.Time
+	TerminatedAt  time.Time
 }
