@@ -11,7 +11,7 @@ import (
 
 type Storage interface {
 	SaveUser(ctx context.Context, user *models.User) (*models.SavedUser, error)
-	SaveSignup(ctx context.Context, signup models.Signup) error
+	SaveSignup(ctx context.Context, signup models.Signup) (*models.SavedSignup, error)
 	SaveSession(ctx context.Context, session *models.Session) (*models.SavedSession, error)
 
 	UserById(ctx context.Context, id int64) (*models.SavedUser, error)
