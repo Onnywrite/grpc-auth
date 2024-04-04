@@ -3,8 +3,10 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
-	"os"
+	"net/netip"
+	goos "os"
 	"time"
 
 	"github.com/Onnywrite/grpc-auth/internal/models"
@@ -26,6 +28,8 @@ var (
 	ErrAlreadySignedUp    = errors.New("you've already signed up and can log in")
 	ErrNoSuchService      = errors.New("service does not exist")
 	ErrInternal           = errors.New("internal error")
+	ErrInvalidIP          = errors.New("invalid IP")
+	ErrUnauthorized       = errors.New("unauthorized")
 )
 
 func (a *AuthServiceImpl) Register(ctx context.Context, optLogin, optEmail, optPhone *string, password string) error {
@@ -113,39 +117,84 @@ func (a *AuthServiceImpl) SignUp(ctx context.Context, key, password string, serv
 	return nil
 }
 
-func (a *AuthServiceImpl) LogIn(ctx context.Context,
-	key, password string,
-	serviceId int64 /*some session data*/) (refresh string, access string, err error) {
+func (a *AuthServiceImpl) LogIn(ctx context.Context, key, password string, serviceId int64, browser, os, ip string) (*models.Tokens, error) {
 	const op = "auth.AuthServiceImpl.LogIn"
-	log := a.log.With(slog.String("op", op), slog.String("key", key), slog.Int64("service_id", serviceId))
+	log := a.log.With(slog.String("op", op), slog.String("key", key),
+		slog.Int64("service_id", serviceId), slog.String("ip", ip), slog.String("os", os), slog.String("browser", browser))
 
 	user, err := a.recognize(ctx, key)
 	if err != nil {
 		log.Error("recognition failed")
-		return "", "", err
+		return nil, err
+	}
+	log = log.With(slog.Int64("user_id", user.Id))
+
+	su, err := a.db.Signup(ctx, user.Id, serviceId)
+	if err != nil {
+		log.Error("signup not found")
 	}
 
-	a.db.Signup
+	ipParsed, err := netip.ParseAddr(ip)
+	if err != nil {
+		log.Error("could not parse IP address")
+		return nil, ErrInvalidIP
+	}
 
-	tkn := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id":         user.Id,
+	session, err := a.db.SaveSession(ctx, &models.Session{
+		SignupId: su.Id,
+		IP:       ipParsed,
+		Browser:  &browser,
+		OS:       &os,
+	})
+	// TODO:
+	if err != nil {
+		log.Error("could not save session")
+		return nil, ErrInternal
+	}
+
+	refreshTkn := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"session_uuid": session.UUID.String(),
+		"exp":          time.Now().Add(a.refreshTokenTTL).Unix(),
+	})
+
+	refresh, err := refreshTkn.SignedString(goos.Getenv(tokenEnv))
+	if err != nil {
+		log.Error("failed to sign access token", slog.String("error", err.Error()))
+		return nil, ErrInternal
+	}
+
+	accessTkn := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"id":         su.UserId,
 		"login":      user.Login,
-		"service_id": serviceId,
+		"service_id": su.ServiceId,
 		// probably custom type like models.Role
 		"roles": []string{},
 		"exp":   time.Now().Add(a.tokenTTL).Unix(),
 	})
 
-	token, err := tkn.SignedString(os.Getenv(tokenEnv))
+	access, err := accessTkn.SignedString(goos.Getenv(tokenEnv))
 	if err != nil {
-		log.Error("failed to sign token", slog.String("error", err.Error()))
-		return "", ErrInternal
+		log.Error("failed to sign access token", slog.String("error", err.Error()))
+		return nil, ErrInternal
 	}
 
-	return token, nil
+	return &models.Tokens{
+		Refresh: refresh,
+		Access:  access,
+	}, nil
 }
 
-func (a *AuthServiceImpl) LogOut(ctx context.Context, token string) error {
+func (a *AuthServiceImpl) LogOut(ctx context.Context, refresh string) error {
+	const op = "auth.AuthServiceImpl.LogOut"
+	log := a.log.With(slog.String("op", op))
+
+	token, err := a.processToken(refresh)
+	if err != nil {
+		log.Error("could not process token", slog.String("token", refresh))
+		return ErrUnauthorized
+	}
+
+	
 	return nil
 }
 
@@ -177,4 +226,58 @@ func (a *AuthServiceImpl) recognize(ctx context.Context, key string) (user *mode
 	log.Info("switched key and recognized user", slog.Int64("id", user.Id))
 
 	return user, nil
+}
+
+var (
+	ErrUnexpectedSigningMethod = errors.New("unexpected signing method")
+	ErrTokenExpired            = errors.New("token has expired")
+)
+
+func (a *AuthServiceImpl) processToken(tkn string) (*models.AccessToken, error) {
+	token, err := jwt.Parse(tkn, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, ErrUnexpectedSigningMethod
+		}
+
+		return []byte(goos.Getenv(tokenEnv)), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		exp := claims["exp"].(float64)
+
+		if float64(time.Now().Unix()) > exp {
+			return nil, ErrTokenExpired
+		}
+
+		id, ok := claims["id"].(int64)
+		if !ok {
+			return nil, fmt.Errorf("could not convert 'id' to int64")
+		}
+		login, ok := claims["login"].(string)
+		if !ok {
+			return nil, fmt.Errorf("could not convert 'login' to string")
+		}
+		serviceId, ok := claims["service_id"].(int64)
+		if !ok {
+			return nil, fmt.Errorf("could not convert 'service_id' to int64")
+		}
+		roles, ok := claims["roles"].([]string)
+		if !ok {
+			return nil, fmt.Errorf("could not convert 'roles' to []string")
+		}
+		token := &models.AccessToken{
+			Id:        id,
+			Login:     login,
+			ServiceId: serviceId,
+			Roles:     roles,
+		}
+
+		return token, nil
+	}
+
+	return nil, err
 }
