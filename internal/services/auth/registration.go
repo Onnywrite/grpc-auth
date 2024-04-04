@@ -142,10 +142,11 @@ func (a *AuthServiceImpl) LogIn(ctx context.Context, key, password string, servi
 	}
 
 	session, err := a.db.SaveSession(ctx, &models.Session{
-		SignupId: su.Id,
-		IP:       ipParsed,
-		Browser:  &browser,
-		OS:       &os,
+		UserId:    su.UserId,
+		ServiceId: su.ServiceId,
+		IP:        ipParsed,
+		Browser:   &browser,
+		OS:        &os,
 	})
 	// TODO:
 	if err != nil {
