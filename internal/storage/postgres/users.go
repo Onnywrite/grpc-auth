@@ -82,7 +82,7 @@ func (pg *Pg) userBy(ctx context.Context, prop string, val any) (*models.SavedUs
 	}
 
 	u := &models.SavedUser{}
-	err = stmt.GetContext(ctx, u, args)
+	err = stmt.GetContext(ctx, u, args...)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
