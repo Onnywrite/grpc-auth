@@ -60,7 +60,7 @@ func (pg *Pg) Signup(ctx context.Context, userId, serviceId int64) (*models.Save
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, storage.ErrUserNotFound
+			return nil, storage.ErrSignupNotFound
 		}
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
