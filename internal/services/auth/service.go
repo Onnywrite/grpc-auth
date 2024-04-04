@@ -21,7 +21,7 @@ type Storage interface {
 
 	Signup(ctx context.Context, userId, serviceId int64) (*models.SavedSignup, error)
 
-	TerminateSession(ctx context.Context, uuid uuid.UUID) error
+	DeleteSession(ctx context.Context, uuid uuid.UUID) error
 }
 
 type AuthServiceImpl struct {
