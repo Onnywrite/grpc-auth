@@ -1,6 +1,6 @@
 GEN=./gen
 PROTOPATH=./proto
-SSOPROTOS=sso.proto sso_messages.proto
+SSOPROTOS=sso.proto
 
 protoc:
 	protoc --go_out=${GEN} --go_opt=paths=source_relative \
