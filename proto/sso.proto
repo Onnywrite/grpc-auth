@@ -1,15 +1,72 @@
 syntax = "proto3";
-import "sso_messages.proto";
 
 package auth;
 
 option go_package = "onnywrite.sso.v1;gen";
 
 service Auth {
-  rpc SignUp(AuthRequest) returns (Token);
-  rpc LogIn(AuthRequest) returns (Token);
-  rpc LogOut(Token) returns (NullResponse);
+  rpc Ping(google.protobuf.NullValue) returns (google.protobuf.NullValue);
+
+  rpc Register(User) returns (google.protobuf.NullValue);
+  rpc Signup(SignupRequest) returns (google.protobuf.NullValue);
+  rpc Login(LoginRequest) returns (Tokens);
+  rpc Relogin(RefreshToken) returns (AccessToken);
+  rpc Check(RefreshToken) returns (CheckResult);
+  rpc Logout(RefreshToken) returns (google.protobuf.NullValue);
+
+  rpc GetSessions(AccessToken) returns (GetSessionsResponse);
+  rpc LogoutEverywhere(User) returns (google.protobuf.NullValue);
+  rpc ClearTerminatedSessions(User) returns (google.protobuf.NullValue);
 }
 
-// service Roles { rpc Role(UserId) returns (NullResponse); }
-// message UserId { int64 id = 1; }
+message User {
+  optional string login = 1;
+  optional string email = 2;
+  optional string phone = 3;
+  string password = 4;
+};
+
+message SignupRequest {
+  User user = 1;
+  int64 service_id = 2;
+};
+
+message LoginRequest {
+  User user = 1;
+  int64 service_id = 2;
+  SessionInfo info = 3;
+};
+
+message SessionInfo {
+  optional string browser = 1;
+  optional string os = 2;
+  optional string ip = 3;
+};
+
+message UserSession {
+  SessionInfo info = 1;
+  optional google.protobuf.Timestamp terminated_at = 2;
+};
+
+message AccessToken { string token = 1; }
+
+message RefreshToken { string token = 1; }
+
+message Tokens {
+  string access = 1;
+  string refresh = 2;
+};
+
+message CheckResult { bool need_relogin = 1; };
+
+enum SessionType {
+  ALL = 1;
+  ACTIVE = 2;
+  TERMINATED = 3;
+};
+
+message GetSessionsRequest {
+  AccessToken token = 1;
+  SessionType type = 2;
+};
+message GetSessionsResponse { repeated UserSession sessions = 1; };
