@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/netip"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -41,13 +42,31 @@ func (pg *Pg) SaveSession(ctx context.Context, session *models.Session) (*models
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	saved := &models.SavedSession{}
-	err = row.StructScan(saved)
+	type scannedSession struct {
+		UUID         string `db:"session_uuid"`
+		SignupId     int64  `db:"signup_fk"`
+		IP           netip.Addr
+		Browser      string
+		OS           string
+		CreatedAt    time.Time `db:"at"`
+		TerminatedAt time.Time
+	}
+
+	scanned := &scannedSession{}
+	err = row.StructScan(scanned)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return saved, nil
+	return &models.SavedSession{
+		UUID:         uuid.MustParse(scanned.UUID),
+		SignupId:     scanned.SignupId,
+		IP:           scanned.IP,
+		Browser:      scanned.Browser,
+		OS:           scanned.OS,
+		CreatedAt:    scanned.CreatedAt,
+		TerminatedAt: scanned.TerminatedAt,
+	}, nil
 }
 
 func (pg *Pg) DeleteSession(ctx context.Context, uuid uuid.UUID) error {
@@ -55,7 +74,7 @@ func (pg *Pg) DeleteSession(ctx context.Context, uuid uuid.UUID) error {
 
 	s, args, err := sq.Update("sessions").
 		Set("terminated_at", time.Now()).
-		Where(sq.Eq{"session_uuid": uuid.String()}).
+		Where(sq.And{sq.Eq{"session_uuid": uuid.String()}, sq.Eq{"terminated_at": nil}}).
 		PlaceholderFormat(sq.Dollar).
 		ToSql()
 	if err != nil {
