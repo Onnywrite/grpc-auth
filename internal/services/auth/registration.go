@@ -27,6 +27,7 @@ var (
 	ErrPasswordTooLong    = errors.New("password is longer than 72 bytes")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrAlreadySignedUp    = errors.New("you've already signed up and can log in")
+	ErrAlreadyLoggedIn    = errors.New("you've already logged in")
 	ErrNoSuchService      = errors.New("service does not exist")
 	ErrInternal           = errors.New("internal error")
 	ErrInvalidIP          = errors.New("invalid IP")
@@ -95,14 +96,17 @@ func (a *AuthServiceImpl) SignUp(ctx context.Context, key, password string, serv
 		log.Error("recognition failed")
 		return err
 	}
+	log = log.With(slog.Int64("user_id", user.Id))
+	log.Info("user recognized")
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {
 		log.Error("invalid password", slog.String("error", err.Error()))
 		return ErrInvalidCredentials
 	}
+	log.Info("password and hash match")
 
-	err = a.db.SaveSignup(ctx, models.Signup{
+	su, err := a.db.SaveSignup(ctx, models.Signup{
 		UserId:    user.Id,
 		ServiceId: serviceId,
 	})
@@ -114,6 +118,7 @@ func (a *AuthServiceImpl) SignUp(ctx context.Context, key, password string, serv
 		log.Error("failed to save signup", slog.String("error", err.Error()))
 		return ErrInternal
 	}
+	log.Info("signed up", slog.Int64("signup_id", su.Id))
 
 	return nil
 }
@@ -129,11 +134,14 @@ func (a *AuthServiceImpl) LogIn(ctx context.Context, key, password string, servi
 		return nil, err
 	}
 	log = log.With(slog.Int64("user_id", user.Id))
+	log.Info("user recognized")
 
 	su, err := a.db.Signup(ctx, user.Id, serviceId)
 	if err != nil {
 		log.Error("signup not found")
 	}
+	log = log.With(slog.Int64("signup_id", su.Id))
+	log.Info("user signed up")
 
 	ipParsed, err := netip.ParseAddr(ip)
 	if err != nil {
@@ -148,11 +156,15 @@ func (a *AuthServiceImpl) LogIn(ctx context.Context, key, password string, servi
 		Browser:   &browser,
 		OS:        &os,
 	})
-	// TODO:
 	if err != nil {
-		log.Error("could not save session")
+		log.Error("could not save session", slog.String("error", err.Error()))
+		if errors.Is(err, storage.ErrSessionExists) {
+			return nil, ErrAlreadyLoggedIn
+		}
 		return nil, ErrInternal
 	}
+	log = log.With(slog.String("session_uuid", session.UUID.String()))
+	log.Info("saved session")
 
 	refreshTkn := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"session_uuid": session.UUID.String(),
@@ -179,6 +191,7 @@ func (a *AuthServiceImpl) LogIn(ctx context.Context, key, password string, servi
 		log.Error("failed to sign access token", slog.String("error", err.Error()))
 		return nil, ErrInternal
 	}
+	log.Info("logged in successfully")
 
 	return &models.Tokens{
 		Refresh: refresh,
@@ -196,6 +209,7 @@ func (a *AuthServiceImpl) LogOut(ctx context.Context, refresh string) error {
 		return ErrUnauthorized
 	}
 	log = log.With(slog.String("session_uuid", token.SessionUUID.String()))
+	log.Info("token is processed")
 
 	err = a.db.DeleteSession(ctx, token.SessionUUID)
 	if err != nil {
@@ -203,6 +217,7 @@ func (a *AuthServiceImpl) LogOut(ctx context.Context, refresh string) error {
 		// TODO:
 		return errors.New("TODO")
 	}
+	log.Info("logged out successfully")
 
 	return nil
 }
