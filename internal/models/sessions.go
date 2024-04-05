@@ -15,11 +15,11 @@ type Session struct {
 }
 
 type SavedSession struct {
-	UUID      uuid.UUID
-	SignupId  int64 `db:"signup_fk"`
-	IP        netip.Addr
-	Browser   string
-	OS        string
-	CreatedAt time.Time `db:"at"`
-	TerminatedAt  time.Time
+	UUID         uuid.UUID `db:"session_uuid"`
+	SignupId     int64     `db:"signup_fk"`
+	IP           netip.Addr
+	Browser      string
+	OS           string
+	CreatedAt    time.Time `db:"at"`
+	TerminatedAt time.Time
 }
