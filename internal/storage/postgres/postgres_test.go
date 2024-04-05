@@ -39,7 +39,7 @@ func TestAll(t *testing.T) {
 	defer cancel()
 
 	users := SaveUserPipeline(ctx, t)
-
+	_ = users
 }
 
 func SaveUserPipeline(ctx context.Context, t *testing.T) <-chan *models.SavedUser {
