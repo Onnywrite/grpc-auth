@@ -13,11 +13,11 @@ type AuthService interface {
 	LogOut(ctx context.Context, token string) error
 }
 
-type authServerImpl struct {
+type authServer struct {
 	gen.UnimplementedAuthServer
 	service AuthService
 }
 
 func Register(server *grpc.Server, service AuthService) {
-	gen.RegisterAuthServer(server, &authServerImpl{service: service})
+	gen.RegisterAuthServer(server, &authServer{service: service})
 }

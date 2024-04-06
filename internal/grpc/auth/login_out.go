@@ -8,10 +8,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (authServerImpl) LogIn(context.Context, *gen.AuthRequest) (*gen.Token, error) {
+func (authServer) LogIn(context.Context, *gen.AuthRequest) (*gen.Token, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method is not implemented")
 }
 
-func (authServerImpl) LogOut(context.Context, *gen.Token) (*gen.NullResponse, error) {
+func (authServer) LogOut(context.Context, *gen.Token) (*gen.NullResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method is not implemented")
 }
