@@ -13,4 +13,5 @@ type SavedSignup struct {
 	ServiceId int64      `db:"service_fk"`
 	CreatedAt time.Time  `db:"at"`
 	BannedAt  *time.Time `db:"banned_at"`
+	DeletedAt *time.Time `db:"deleted_at"`
 }
