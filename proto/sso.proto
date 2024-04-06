@@ -16,7 +16,7 @@ service Auth {
   //  any code otherwise
   rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
 
-  // Most usable RPCs
+  // Account RPCs
 
   // Register
   //  registrates you in the whole SSO system and let you to sign up
@@ -36,9 +36,7 @@ service Auth {
   // Signup
   //  links your registered (existing) account to an existing service by its id
   // Takes:
-  //  - at least user_login or user_email or user_phone
-  //    (you can send user_login and user_email, or user_phone and user_email, or all together,
-  //    but at least one optional field must be valid)
+  //  - either login or email or phone, which identifies user's account
   //  - user_password of an existing user
   //  - service_id of an existing service
   // Returns:
@@ -46,16 +44,29 @@ service Auth {
   //  3 if arguments are not valid;
   //  5 if user or service or both not found (not exist);
   //  6 if user has already been signed up to the service;
+  //  9 if user has signed out and can recover its account via RecoverSignup rpc;
   //  13 if an internal error occurred
   rpc Signup(SignupRequest) returns (google.protobuf.Empty);
+
+  // RecoverSignup
+  //  recover your registered (existing) signup if it's been signed out
+  // Takes:
+  //  - either login or email or phone, which identifies user's account
+  //  - user_password of an existing user
+  //  - service_id of an existing service
+  // Returns:
+  //  0 if you've successfully recover your signup;
+  //  3 if arguments are not valid;
+  //  5 if user or service or both not found (not exist);
+  //  9 if user has already been signed up to the service (no need in recovery);
+  //  13 if an internal error occurred
+  rpc RecoverSignup(SignupRequest) returns (google.protobuf.Empty);
 
   // Login
   //  opens a session for your existing signup (pair user and service) for
   //  specific browser and device (ip and os)
   // Takes:
-  //  - at least user_login or user_email or user_phone
-  //    (you can send user_login and user_email, or user_phone and user_email, or all together,
-  //    but at least one optional field must be valid)
+  //  - either login or email or phone, which identifies user's account
   //  - user_password of an existing user
   //  - service_id of an existing service with an existing signup for the user
   //  - likely to contain info about session: browser, os, ip
@@ -68,6 +79,8 @@ service Auth {
   //  6 if user has already been logged in on this devce in this browser (no need to log in);
   //  13 if an internal error occurred
   rpc Login(LoginRequest) returns (Tokens);
+
+  // Protected RPCs
 
   // Relogin
   //  sends new updated access token (if it's expired) by refresh token (which describes session)
@@ -107,8 +120,6 @@ service Auth {
   //    (you'll have to log in again from all devices);
   //    To avoid this problem, get rid of the refresh token completely after you've logged out
   rpc Logout(RefreshToken) returns (google.protobuf.Empty);
-
-  // Protected RPCs
 
   // GetSessions
   //  list all user's sessions in the current service
@@ -189,7 +200,7 @@ service Auth {
   // Signout
   //  unlinks your registered (existing) account from the current service
   //  it's like locally delete your account (not everywhere).
-  //  You have a half of year to recover the account before it will be deleted completely
+  //  You have a half of year to recover the signup before it will be deleted completely
   //  signed up to it
   // Takes:
   //  - either login or email or phone, which identifies user's account
