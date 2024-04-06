@@ -24,14 +24,14 @@ type Storage interface {
 	DeleteSession(ctx context.Context, uuid uuid.UUID) error
 }
 
-type AuthServiceImpl struct {
+type AuthService struct {
 	log                       *slog.Logger
 	db                        Storage
 	tokenTTL, refreshTokenTTL time.Duration
 }
 
-func New(logger *slog.Logger, db Storage, tokenTTL, refreshTokenTTL time.Duration) *AuthServiceImpl {
-	return &AuthServiceImpl{
+func New(logger *slog.Logger, db Storage, tokenTTL, refreshTokenTTL time.Duration) *AuthService {
+	return &AuthService{
 		log:      logger,
 		db:       db,
 		tokenTTL: tokenTTL,
