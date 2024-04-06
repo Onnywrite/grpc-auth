@@ -10,8 +10,6 @@ option csharp_namespace = "Onnywrite.SSO.Auth";
 
 service Auth {
 
-  // Returns:
-  //  any code otherwise
   rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // Account RPCs
@@ -95,7 +93,7 @@ service Auth {
   //  13 if an internal error occurred
   //  16 if access token is invalid or has expired (need to call Relogin rpc)
   rpc Check(AccessToken) returns (google.protobuf.Empty);
-
+  
   // Logout
   //  terminates current session, which is stored in refresh token
   // Returns:
@@ -110,19 +108,25 @@ service Auth {
   //    To avoid this problem, get rid of the refresh token completely after
   //    you've logged out
   rpc Logout(RefreshToken) returns (google.protobuf.Empty);
-
+  
   // Returns:
   //  3 if either type or access token cannot be treated as a JWT (you've sent rubbish);
   //  13 if an internal error occurred;
   //  16 if access token has expired (need to call Relogin rpc)
   rpc GetSessions(GetSessionsRequest) returns (Sessions);
-
+  
   // Returns:
   //  3 if access token cannot be treated as a JWT (you've sent rubbish);
   //  13 if an internal error occurred
   //  16 if access token is invalid or has expired (need to call Relogin rpc)
   rpc GetProfile(AccessToken) returns (UserProfile);
-
+  
+  // Returns:
+  //  3 if any new data is invalid;
+  //  13 if an internal error occurred
+  //  16 if access token is invalid or has expired (need to call Relogin rpc)
+  rpc EditProfile(EditProfileRequest) returns (google.protobuf.Empty);
+  
   // Dangerous RPCs (need to provide password)
 
   // Returns:
@@ -277,4 +281,11 @@ message UserProfile {
   string login = 2;
   optional string email = 3;
   optional string phone = 4;
+};
+
+message EditProfileRequest {
+  string login = 2;
+  optional string email = 3;
+  optional string phone = 4;
+  string access_token = 5;
 };
