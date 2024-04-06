@@ -9,10 +9,8 @@ option go_package = "onnywrite.sso.v1;gen";
 option csharp_namespace = "Onnywrite.SSO.Auth";
 
 service Auth {
-  // Ping
-  //  makes sure gRPC server accepts connections
+
   // Returns:
-  //  0 if it works;
   //  any code otherwise
   rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
 
@@ -25,22 +23,27 @@ service Auth {
   //  - at least login or email or phone
   //    (you can send login and email, or phone and email, or all together,
   //    but at least one optional field must be valid)
-  //  - password of an existing user
   // Returns:
-  //  0 if you've successfully registrated;
   //  3 if arguments are not valid;
   //  6 if user with these credentials already exists;
+  //  9 if user has unregistred and can recover its account via Recover;
   //  13 if an internal error occurred
   rpc Register(UserCredentials) returns (google.protobuf.Empty);
+
+  // Returns:
+  //  3 if arguments are not valid;
+  //  5 if user not found;
+  //  9 if user has already been signed up to the service (no need in recovery);
+  //  13 if an internal error occurred
+  rpc Recover(UserCredentials) returns (google.protobuf.Empty);
 
   // Signup
   //  links your registered (existing) account to an existing service by its id
   // Takes:
-  //  - either login or email or phone, which identifies user's account
+  //  - either login or email or phone, which identifies user's existing account
   //  - user_password of an existing user
   //  - service_id of an existing service
   // Returns:
-  //  0 if you've successfully signed up to the service;
   //  3 if arguments are not valid;
   //  5 if user or service or both not found (not exist);
   //  6 if user has already been signed up to the service;
@@ -55,7 +58,6 @@ service Auth {
   //  - user_password of an existing user
   //  - service_id of an existing service
   // Returns:
-  //  0 if you've successfully recover your signup;
   //  3 if arguments are not valid;
   //  5 if user or service or both not found (not exist);
   //  9 if user has already been signed up to the service (no need in recovery);
@@ -66,174 +68,155 @@ service Auth {
   //  opens a session for your existing signup (pair user and service) for
   //  specific browser and device (ip and os)
   // Takes:
-  //  - either login or email or phone, which identifies user's account
-  //  - user_password of an existing user
   //  - service_id of an existing service with an existing signup for the user
   //  - likely to contain info about session: browser, os, ip
   // Returns:
-  //  - access token, which is used to access protected resources
-  //  - refresh token, which is used to refresh the access one, because it has small TTL
-  //  0 if you've successfully logged in;
   //  3 if arguments are not valid;
   //  5 if signup not found (you've not been signed up yet);
-  //  6 if user has already been logged in on this devce in this browser (no need to log in);
+  //  6 if user has already been logged in on this devce in this browser (no
+  //  need to log in);
   //  13 if an internal error occurred
   rpc Login(LoginRequest) returns (Tokens);
 
-  // Protected RPCs
+  // Protected RPCs (need tokens)
 
   // Relogin
-  //  sends new updated access token (if it's expired) by refresh token (which describes session)
-  // Takes:
-  //  - token, which is refresh one. You own one via Login rpc
+  //  sends new updated access token (if it's expired) and new refresh token
   // Returns:
-  //  - new access token, which is used to access protected resources
-  //  0 if you've successfully got new access token;
   //  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
   //  13 if an internal error occurred;
   //  16 if refresh token has expired (need to ask user to log in again)
-  rpc Relogin(RefreshToken) returns (AccessToken);
+  rpc Relogin(RefreshToken) returns (Tokens);
 
   // Check
   //  checks if your access token still be valid and unexpired
-  // Takes:
-  //  - token, which is access one. You own it via Login or Relogin rpc
   // Returns:
-  //  0 if access token still be valid and unexpired;
   //  3 if access token cannot be treated as a JWT (you've sent rubbish);
   //  13 if an internal error occurred
   //  16 if access token is invalid or has expired (need to call Relogin rpc)
   rpc Check(AccessToken) returns (google.protobuf.Empty);
 
   // Logout
-  //  terminate current session, which is stored in refresh token
-  // Takes:
-  //  - token, which is refresh one. You own one via Login rpc
+  //  terminates current session, which is stored in refresh token
   // Returns:
-  //  0 if you've succeessfully logged out (terminated the session);
   //  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
   //  13 if an internal error occurred;
-  //  16 if refresh token has either expired or session has already been terminated (check note 1)
+  //  16 if refresh token has either expired or session has already been
+  //  terminated (check note 1)
   // Notes:
   //  - you must not use that refresh token again;
   //    If you do, the SSO will terminate ALL currently active sessions
   //    (you'll have to log in again from all devices);
-  //    To avoid this problem, get rid of the refresh token completely after you've logged out
+  //    To avoid this problem, get rid of the refresh token completely after
+  //    you've logged out
   rpc Logout(RefreshToken) returns (google.protobuf.Empty);
 
-  // GetSessions
-  //  list all user's sessions in the current service
-  // Takes:
-  //  - access token. You own it via Login or Relogin rpc
-  //  - type of sessions, you wanna get:
-  //    ALL - both terminated and active
-  //    ACTIVE - active only
-  //    Terminated - terminated only
   // Returns:
-  //  - array of sessions. Each element contains:
-  //    browser, os and ip, which the session has been opened from
-  //    terminated_at - null if active, timestamp if terminated
-  //  0 if you've got the sessions;
-  //  3 if either type or access token is invalid;
+  //  3 if either type or access token cannot be treated as a JWT (you've sent rubbish);
   //  13 if an internal error occurred;
   //  16 if access token has expired (need to call Relogin rpc)
   rpc GetSessions(GetSessionsRequest) returns (Sessions);
 
-  // GetProfile
-  //  returns user data such as their login, email and phone
-  // Takes:
-  //  - access token. You own it via Login or Relogin rpc
   // Returns:
-  //  - id of the user
-  //  - login (nickname) of the user
-  //  - email of the user or null
-  //  - phone of the user or null
+  //  3 if access token cannot be treated as a JWT (you've sent rubbish);
+  //  13 if an internal error occurred
+  //  16 if access token is invalid or has expired (need to call Relogin rpc)
   rpc GetProfile(AccessToken) returns (UserProfile);
-  
-  // Dangerous RPCs
-  
-  // LogoutEverywhere
-  //  terminates all user's active sessions
-  // Takes:
-  //  - either login or email or phone, which identifies user's account
-  //  - password of the account
-  //  - refresh token (you must be logged in to log out everywhere)
+
+  // Dangerous RPCs (need to provide password)
+
   // Returns:
-  //  0 if you've successfully logged out everywhere;
   //  3 if refresh token has invalid signature;
   //  5 if user's credentials are invalid;
   //  7 if user in credentials and user opened the session mismatch
   //    (client probably has entered wrong password or
   //    forgot which account is currently in use);
   //  13 if an internal error occurred;
-  //  16 if refresh token has either expired or session has already been terminated (check note 2)
+  //  16 if refresh token has either expired or session has already been
+  //  terminated (check note 2)
   // Notes:
   //  - this rpc is dangerous
   //  - SSO will terminate ALL currently active sessions if 16 is returned
   //    (you'll have to log in again from all devices);
-  //    To avoid this problem, get rid of the refresh token completely after you've logged out
+  //    To avoid this problem, get rid of the refresh token completely after
+  //    you've logged out
   rpc LogoutEverywhere(DangerousServiceRequest) returns (google.protobuf.Empty);
-  
-  
-  // ClearTerminatedSessions
-  //  clears (completely deletes) all terminated sessions, that has ever been
+
   // Takes:
   //  - either login or email or phone, which identifies user's account
   //  - password of the account
   //  - refresh token (you must be logged in to clear terminated sessions)
   // Returns:
-  //  0 if you've successfully got rid of terminated sessions;
   //  3 if refresh token has invalid signature;
   //  5 if user's credentials are invalid;
   //  7 if user in credentials and user opened the session mismatch
   //    (client probably has entered wrong password or
   //    forgot which account is currently in use);
   //  13 if an internal error occurred;
-  //  16 if refresh token has either expired or session has already been terminated (check note 2)
+  //  16 if refresh token has either expired or session has already been
+  //  terminated (check note 2)
   // Notes:
   //  - this rpc is dangerous
   //  - SSO will terminate ALL currently active sessions if 16 is returned
   //    (you'll have to log in again from all devices);
-  //    To avoid this problem, get rid of the refresh token completely after you've logged out
-  rpc ClearTerminatedSessions(DangerousServiceRequest) returns (google.protobuf.Empty);
+  //    To avoid this problem, get rid of the refresh token completely after
+  //    you've logged out
+  rpc ClearTerminatedSessions(DangerousServiceRequest)
+      returns (google.protobuf.Empty);
 
   // Signout
-  //  unlinks your registered (existing) account from the current service
-  //  it's like locally delete your account (not everywhere).
+  //  unlinks account from the current service;
+  //  It's like delete your account for the service.
   //  You have a half of year to recover the signup before it will be deleted completely
-  //  signed up to it
   // Takes:
   //  - either login or email or phone, which identifies user's account
-  //  - password of the account
-  //  - refresh token (you must be logged in to sign out)
   // Returns:
-  //  0 if you've successfully signed out;
   //  3 if refresh token has invalid signature;
   //  5 if user's credentials are invalid;
   //  7 if user in credentials and user opened the session mismatch
   //    (client probably has entered wrong password or
   //    forgot which account is currently in use);
   //  13 if an internal error occurred;
-  //  16 if refresh token has either expired or session has already been terminated (check note 2)
+  //  16 if refresh token has either expired or session has already been
+  //  terminated (check note 2)
   // Notes:
   //  - this rpc is dangerous
   //  - SSO will terminate ALL currently active sessions if 16 is returned
   //    (you'll have to log in again from all devices);
-  //    To avoid this problem, get rid of the refresh token completely after you've logged out
+  //    To avoid this problem, get rid of the refresh token completely after
+  //    you've logged out
   rpc Signout(DangerousServiceRequest) returns (google.protobuf.Empty);
-  
+
   // SignoutEverywhere
-  //  unlinks your registered (existing) account from all services it's linked to
-  // Takes:
-  //  - either login or email or phone, which identifies user's account
-  //  - password of the account
+  //  unlinks your account from all services it's linked to
   // Returns:
-  //  0 if you've successfully signed out everywhere;
   //  5 if user's credentials are invalid;
-  //  13 if an internal error occurred;
+  //  13 if an internal error occurred
   // Notes:
   //  - this rpc is so dangerous
-  rpc SignoutEverywhere(DangerousRequest) returns (google.protobuf.Empty);
+  rpc SignoutEverywhere(UserCredentials) returns (google.protobuf.Empty);
+
+  // Unregister
+  //  opposite for Register.
+  //  You have one year to recover the account before it will be deleted completely
+  // Takes:
+  //  - either login or email or phone, which identifies user's account
+  // Returns:
+  //  3 if refresh token has invalid signature;
+  //  5 if user's credentials are invalid;
+  //  7 if user in credentials and user opened the session mismatch
+  //    (client probably has entered wrong password or
+  //    forgot which account is currently in use);
+  //  13 if an internal error occurred;
+  //  16 if refresh token has either expired or session has already been
+  //  terminated (check note 2)
+  // Notes:
+  //  - this rpc is dangerous
+  //  - SSO will terminate ALL currently active sessions if 16 is returned
+  //    (you'll have to log in again from all devices);
+  //    To avoid this problem, get rid of the refresh token completely after
+  //    you've logged out
+  rpc Unregister(UserCredentials) returns (google.protobuf.Empty);
 }
 
 message UserCredentials {
@@ -244,22 +227,15 @@ message UserCredentials {
 };
 
 message SignupRequest {
-  optional string user_login = 1;
-  optional string user_email = 2;
-  optional string user_phone = 3;
-  string user_password = 4;
-  int64 service_id = 5;
+  UserCredentials credentials = 1;
+  int64 service_id = 2;
 };
 
 message LoginRequest {
-  optional string user_login = 1;
-  optional string user_email = 2;
-  optional string user_phone = 3;
-  string user_password = 4;
-  int64 service_id = 5;
-  optional string browser = 6;
-  optional string os = 7;
-  optional string ip = 8;
+  SignupRequest signup = 1;
+  optional string browser = 2;
+  optional string os = 3;
+  optional string ip = 4;
 };
 
 message Session {
@@ -292,18 +268,8 @@ message GetSessionsRequest {
 message Sessions { repeated Session sessions = 1; };
 
 message DangerousServiceRequest {
-  optional string login = 1;
-  optional string email = 2;
-  optional string phone = 3;
-  string password = 4;
-  string refresh_token = 5;
-};
-
-message DangerousRequest {
-  optional string login = 1;
-  optional string email = 2;
-  optional string phone = 3;
-  string password = 4;
+  string password = 1;
+  string refresh_token = 2;
 };
 
 message UserProfile {
