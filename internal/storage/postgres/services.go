@@ -33,7 +33,7 @@ func (pg *Pg) SaveService(ctx context.Context, service *models.Service) (*models
 	row := stmt.QueryRowxContext(ctx, args...)
 	err = row.Err()
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
-		return nil, storage.ErrServiceExists
+		return nil, storage.ErrUniqueConstraint
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)

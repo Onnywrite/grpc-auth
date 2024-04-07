@@ -33,7 +33,7 @@ func (pg *Pg) SaveUser(ctx context.Context, user *models.User) (*models.SavedUse
 	row := stmt.QueryRowxContext(ctx, args...)
 	err = row.Err()
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
-		return nil, storage.ErrUserExists
+		return nil, storage.ErrUniqueConstraint
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
@@ -84,10 +84,10 @@ func (pg *Pg) userBy(ctx context.Context, prop string, val any) (*models.SavedUs
 	u := &models.SavedUser{}
 	err = stmt.GetContext(ctx, u, args...)
 
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, storage.ErrEmptyResult
+	}
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, storage.ErrUserNotFound
-		}
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 

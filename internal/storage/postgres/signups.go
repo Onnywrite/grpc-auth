@@ -34,10 +34,10 @@ func (pg *Pg) SaveSignup(ctx context.Context, signup models.Signup) (*models.Sav
 	row := stmt.QueryRowxContext(ctx, args...)
 	err = row.Err()
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
-		return nil, storage.ErrSignupExists
+		return nil, storage.ErrUniqueConstraint
 	}
 	if pgxerr.Is(err, pgerrcode.ForeignKeyViolation) {
-		return nil, storage.ErrNoSuchPrimaryKey
+		return nil, storage.ErrFKConstraint
 	}
 
 	if err != nil {
@@ -73,7 +73,7 @@ func (pg *Pg) Signup(ctx context.Context, userId, serviceId int64) (*models.Save
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, storage.ErrSignupNotFound
+			return nil, storage.ErrEmptyResult
 		}
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
