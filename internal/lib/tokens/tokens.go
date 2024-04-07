@@ -21,9 +21,9 @@ const (
 func New(claims jwt.MapClaims) (string, error) {
 	refreshTkn := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	tkn, err := refreshTkn.SignedString(os.Getenv(Env))
+	tkn, err := refreshTkn.SignedString([]byte(os.Getenv(Env)))
 	if err != nil {
-		return "", ErrSigning
+		return "", err
 	}
 
 	return tkn, nil
