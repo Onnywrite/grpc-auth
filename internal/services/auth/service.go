@@ -10,26 +10,27 @@ import (
 
 type Storage interface {
 	SaveUser(ctx context.Context, user *models.User) (*models.SavedUser, error)
-	SaveSignup(ctx context.Context, signup models.Signup) error
+	UserBy(ctx context.Context, user models.UserIdentifier) (*models.SavedUser, error)
 
-	UserById(ctx context.Context, id int64) (u *models.SavedUser, err error)
-	UserByLogin(ctx context.Context, login string) (u *models.SavedUser, err error)
-	UserByEmail(ctx context.Context, email string) (u *models.SavedUser, err error)
-	UserByPhone(ctx context.Context, phone string) (u *models.SavedUser, err error)
-	// change models.SavedUser to models.SavedSignup
-	//SignupByLogin(ctx context.Context, login string, serviceId int64) (u *models.SavedUser, err error)
-	//SignupByEmail(ctx context.Context, email string, serviceId int64) (u *models.SavedUser, err error)
-	//SignupByPhone(ctx context.Context, phone string, serviceId int64) (u *models.SavedUser, err error)
+	SaveSignup(ctx context.Context, signup models.Signup) (*models.SavedSignup, error)
+	Signup(ctx context.Context, userId, serviceId int64) (*models.SavedSignup, error)
+
+	SaveSession(ctx context.Context, session *models.Session) (*models.SavedSession, error)
+	SessionById(ctx context.Context, uuid string) (*models.SavedSession, error)
+	Session(ctx context.Context, session *models.Session) (*models.SavedSession, error)
+	TerminateSession(ctx context.Context, uuid string) error
+	// ReviveSession(ctx context.Context, uuid string) error
+	DeleteSession(ctx context.Context, uuid string) error
 }
 
-type AuthServiceImpl struct {
-	log      *slog.Logger
-	db       Storage
-	tokenTTL time.Duration
+type AuthService struct {
+	log                       *slog.Logger
+	db                        Storage
+	tokenTTL, refreshTokenTTL time.Duration
 }
 
-func New(logger *slog.Logger, db Storage, tokenTTL time.Duration) *AuthServiceImpl {
-	return &AuthServiceImpl{
+func New(logger *slog.Logger, db Storage, tokenTTL, refreshTokenTTL time.Duration) *AuthService {
+	return &AuthService{
 		log:      logger,
 		db:       db,
 		tokenTTL: tokenTTL,

@@ -4,20 +4,27 @@ import (
 	"context"
 
 	"github.com/Onnywrite/grpc-auth/gen"
+	"github.com/Onnywrite/grpc-auth/internal/models"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type AuthService interface {
-	SignUp(ctx context.Context, optLogin, optEmail, optPhone, appToken, password string) (token string, err error)
-	LogIn(ctx context.Context, optLogin, optEmail, optPhone, appToken, password string) (token string, err error)
-	LogOut(ctx context.Context, token string) error
+	Register(ctx context.Context, optLogin, optEmail, optPhone *string, password string) error
+	Signup(ctx context.Context, identifier models.UserIdentifier, serviceId int64) error
+	Login(ctx context.Context, identifier models.UserIdentifier, sessionInfo models.SessionInfo, serviceId int64) (*models.Tokens, error)
+	Logout(ctx context.Context, refresh string) error
 }
 
-type authServerImpl struct {
+type authServer struct {
 	gen.UnimplementedAuthServer
 	service AuthService
 }
 
 func Register(server *grpc.Server, service AuthService) {
-	gen.RegisterAuthServer(server, &authServerImpl{service: service})
+	gen.RegisterAuthServer(server, &authServer{service: service})
+}
+
+func (authServer) Ping(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return nil, nil
 }

@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -22,9 +23,186 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AuthClient interface {
-	SignUp(ctx context.Context, in *AuthRequest, opts ...grpc.CallOption) (*Token, error)
-	LogIn(ctx context.Context, in *AuthRequest, opts ...grpc.CallOption) (*Token, error)
-	LogOut(ctx context.Context, in *Token, opts ...grpc.CallOption) (*NullResponse, error)
+	Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Register
+	//  registrates you in the whole SSO system and let you to sign up
+	//  in any service
+	// Takes:
+	//  - at least login or email or phone
+	//    (you can send login and email, or phone and email, or all together,
+	//    but at least one optional field must be valid)
+	// Returns:
+	//  3 if arguments are not valid;
+	//  6 if user with these credentials already exists;
+	//  9 if user has unregistred and can recover its account via Recover;
+	//  13 if an internal error occurred
+	Register(ctx context.Context, in *UserCredentials, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Returns:
+	//  3 if arguments are not valid;
+	//  5 if user not found;
+	//  9 if user has already been signed up to the service (no need in recovery);
+	//  13 if an internal error occurred
+	Recover(ctx context.Context, in *UserCredentials, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Signup
+	//  links your registered (existing) account to an existing service by its id
+	// Takes:
+	//  - either login or email or phone, which identifies user's existing account
+	//  - user_password of an existing user
+	//  - service_id of an existing service
+	// Returns:
+	//  5 if user or service or both not found;
+	//  6 if user has already been signed up to the service;
+	//  9 if user has signed out and can recover their account via RecoverSignup rpc;
+	//  13 if an internal error occurred
+	Signup(ctx context.Context, in *SignupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// RecoverSignup
+	//  recover your registered (existing) signup if it's been signed out
+	// Takes:
+	//  - either login or email or phone, which identifies user's account
+	//  - user_password of an existing user
+	//  - service_id of an existing service
+	// Returns:
+	//  3 if arguments are not valid;
+	//  5 if user or service or both not found (not exist);
+	//  9 if user has already been signed up to the service (no need in recovery);
+	//  13 if an internal error occurred
+	RecoverSignup(ctx context.Context, in *SignupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Login
+	//  opens a session for your existing signup (pair user and service) for
+	//  specific browser and device (ip and os)
+	// Takes:
+	//  - service_id of an existing service with an existing signup for the user
+	//  - likely to contain info about session: browser, os, ip
+	// Returns:
+	//  3 if arguments are not valid;
+	//  5 if signup not found;
+	//  6 if user has already been logged in on this devce in this browser (no
+	//  need to log in);
+	//  13 if an internal error occurred
+	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*Tokens, error)
+	// Relogin
+	//  sends new updated access token (if it's expired) and new refresh token
+	// Returns:
+	//  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has expired (need to ask user to log in again)
+	Relogin(ctx context.Context, in *RefreshToken, opts ...grpc.CallOption) (*Tokens, error)
+	// Check
+	//  checks if your access token still be valid and unexpired
+	// Returns:
+	//  3 if access token cannot be treated as a JWT (you've sent rubbish);
+	//  13 if an internal error occurred
+	//  16 if access token is invalid or has expired (need to call Relogin rpc)
+	Check(ctx context.Context, in *AccessToken, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Logout
+	//  terminates current session, which is stored in refresh token
+	// Returns:
+	//  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has either expired or session has already been terminated
+	Logout(ctx context.Context, in *RefreshToken, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Returns:
+	//  3 if either type or access token cannot be treated as a JWT (you've sent rubbish);
+	//  13 if an internal error occurred;
+	//  16 if access token has expired (need to call Relogin rpc)
+	GetSessions(ctx context.Context, in *GetSessionsRequest, opts ...grpc.CallOption) (*Sessions, error)
+	// Returns:
+	//  3 if access token cannot be treated as a JWT (you've sent rubbish);
+	//  13 if an internal error occurred
+	//  16 if access token is invalid or has expired (need to call Relogin rpc)
+	GetProfile(ctx context.Context, in *AccessToken, opts ...grpc.CallOption) (*UserProfile, error)
+	// Returns:
+	//  3 if any new data is invalid;
+	//  13 if an internal error occurred
+	//  16 if access token is invalid or has expired (need to call Relogin rpc)
+	EditProfile(ctx context.Context, in *EditProfileRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Returns:
+	//  3 if refresh token has invalid signature;
+	//  5 if user's credentials are invalid;
+	//  7 if user in credentials and user opened the session mismatch
+	//    (client probably has entered wrong password or
+	//    forgot which account is currently in use);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has either expired or session has already been
+	//  terminated (check note 2)
+	// Notes:
+	//  - this rpc is dangerous
+	//  - SSO will terminate ALL currently active sessions if 16 is returned
+	//    (you'll have to log in again from all devices);
+	//    To avoid this problem, get rid of the refresh token completely after
+	//    you've logged out
+	LogoutEverywhere(ctx context.Context, in *DangerousServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Takes:
+	//  - either login or email or phone, which identifies user's account
+	//  - password of the account
+	//  - refresh token (you must be logged in to clear terminated sessions)
+	// Returns:
+	//  3 if refresh token has invalid signature;
+	//  5 if user's credentials are invalid;
+	//  7 if user in credentials and user opened the session mismatch
+	//    (client probably has entered wrong password or
+	//    forgot which account is currently in use);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has either expired or session has already been
+	//  terminated (check note 2)
+	// Notes:
+	//  - this rpc is dangerous
+	//  - SSO will terminate ALL currently active sessions if 16 is returned
+	//    (you'll have to log in again from all devices);
+	//    To avoid this problem, get rid of the refresh token completely after
+	//    you've logged out
+	ClearTerminatedSessions(ctx context.Context, in *DangerousServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Signout
+	//  unlinks account from the current service;
+	//  It's like delete your account for the service.
+	//  You have a half of year to recover the signup before it will be deleted completely
+	// Takes:
+	//  - either login or email or phone, which identifies user's account
+	// Returns:
+	//  3 if refresh token has invalid signature;
+	//  5 if user's credentials are invalid;
+	//  7 if user in credentials and user opened the session mismatch
+	//    (client probably has entered wrong password or
+	//    forgot which account is currently in use);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has either expired or session has already been
+	//  terminated (check note 2)
+	// Notes:
+	//  - this rpc is dangerous
+	//  - SSO will terminate ALL currently active sessions if 16 is returned
+	//    (you'll have to log in again from all devices);
+	//    To avoid this problem, get rid of the refresh token completely after
+	//    you've logged out
+	Signout(ctx context.Context, in *DangerousServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// SignoutEverywhere
+	//  unlinks your account from all services it's linked to
+	// Returns:
+	//  5 if user's credentials are invalid;
+	//  13 if an internal error occurred
+	// Notes:
+	//  - this rpc is so dangerous
+	SignoutEverywhere(ctx context.Context, in *UserCredentials, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Unregister
+	//  opposite for Register.
+	//  You have one year to recover the account before it will be deleted completely
+	// Takes:
+	//  - either login or email or phone, which identifies user's account
+	// Returns:
+	//  3 if refresh token has invalid signature;
+	//  5 if user's credentials are invalid;
+	//  7 if user in credentials and user opened the session mismatch
+	//    (client probably has entered wrong password or
+	//    forgot which account is currently in use);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has either expired or session has already been
+	//  terminated (check note 2)
+	// Notes:
+	//  - this rpc is dangerous
+	//  - SSO will terminate ALL currently active sessions if 16 is returned
+	//    (you'll have to log in again from all devices);
+	//    To avoid this problem, get rid of the refresh token completely after
+	//    you've logged out
+	Unregister(ctx context.Context, in *UserCredentials, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type authClient struct {
@@ -35,27 +213,153 @@ func NewAuthClient(cc grpc.ClientConnInterface) AuthClient {
 	return &authClient{cc}
 }
 
-func (c *authClient) SignUp(ctx context.Context, in *AuthRequest, opts ...grpc.CallOption) (*Token, error) {
-	out := new(Token)
-	err := c.cc.Invoke(ctx, "/auth.Auth/SignUp", in, out, opts...)
+func (c *authClient) Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Ping", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *authClient) LogIn(ctx context.Context, in *AuthRequest, opts ...grpc.CallOption) (*Token, error) {
-	out := new(Token)
-	err := c.cc.Invoke(ctx, "/auth.Auth/LogIn", in, out, opts...)
+func (c *authClient) Register(ctx context.Context, in *UserCredentials, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Register", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *authClient) LogOut(ctx context.Context, in *Token, opts ...grpc.CallOption) (*NullResponse, error) {
-	out := new(NullResponse)
-	err := c.cc.Invoke(ctx, "/auth.Auth/LogOut", in, out, opts...)
+func (c *authClient) Recover(ctx context.Context, in *UserCredentials, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Recover", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) Signup(ctx context.Context, in *SignupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Signup", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) RecoverSignup(ctx context.Context, in *SignupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/RecoverSignup", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*Tokens, error) {
+	out := new(Tokens)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Login", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) Relogin(ctx context.Context, in *RefreshToken, opts ...grpc.CallOption) (*Tokens, error) {
+	out := new(Tokens)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Relogin", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) Check(ctx context.Context, in *AccessToken, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Check", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) Logout(ctx context.Context, in *RefreshToken, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Logout", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) GetSessions(ctx context.Context, in *GetSessionsRequest, opts ...grpc.CallOption) (*Sessions, error) {
+	out := new(Sessions)
+	err := c.cc.Invoke(ctx, "/auth.Auth/GetSessions", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) GetProfile(ctx context.Context, in *AccessToken, opts ...grpc.CallOption) (*UserProfile, error) {
+	out := new(UserProfile)
+	err := c.cc.Invoke(ctx, "/auth.Auth/GetProfile", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) EditProfile(ctx context.Context, in *EditProfileRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/EditProfile", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) LogoutEverywhere(ctx context.Context, in *DangerousServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/LogoutEverywhere", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) ClearTerminatedSessions(ctx context.Context, in *DangerousServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/ClearTerminatedSessions", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) Signout(ctx context.Context, in *DangerousServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Signout", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) SignoutEverywhere(ctx context.Context, in *UserCredentials, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/SignoutEverywhere", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) Unregister(ctx context.Context, in *UserCredentials, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Unregister", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -66,9 +370,186 @@ func (c *authClient) LogOut(ctx context.Context, in *Token, opts ...grpc.CallOpt
 // All implementations must embed UnimplementedAuthServer
 // for forward compatibility
 type AuthServer interface {
-	SignUp(context.Context, *AuthRequest) (*Token, error)
-	LogIn(context.Context, *AuthRequest) (*Token, error)
-	LogOut(context.Context, *Token) (*NullResponse, error)
+	Ping(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	// Register
+	//  registrates you in the whole SSO system and let you to sign up
+	//  in any service
+	// Takes:
+	//  - at least login or email or phone
+	//    (you can send login and email, or phone and email, or all together,
+	//    but at least one optional field must be valid)
+	// Returns:
+	//  3 if arguments are not valid;
+	//  6 if user with these credentials already exists;
+	//  9 if user has unregistred and can recover its account via Recover;
+	//  13 if an internal error occurred
+	Register(context.Context, *UserCredentials) (*emptypb.Empty, error)
+	// Returns:
+	//  3 if arguments are not valid;
+	//  5 if user not found;
+	//  9 if user has already been signed up to the service (no need in recovery);
+	//  13 if an internal error occurred
+	Recover(context.Context, *UserCredentials) (*emptypb.Empty, error)
+	// Signup
+	//  links your registered (existing) account to an existing service by its id
+	// Takes:
+	//  - either login or email or phone, which identifies user's existing account
+	//  - user_password of an existing user
+	//  - service_id of an existing service
+	// Returns:
+	//  5 if user or service or both not found;
+	//  6 if user has already been signed up to the service;
+	//  9 if user has signed out and can recover their account via RecoverSignup rpc;
+	//  13 if an internal error occurred
+	Signup(context.Context, *SignupRequest) (*emptypb.Empty, error)
+	// RecoverSignup
+	//  recover your registered (existing) signup if it's been signed out
+	// Takes:
+	//  - either login or email or phone, which identifies user's account
+	//  - user_password of an existing user
+	//  - service_id of an existing service
+	// Returns:
+	//  3 if arguments are not valid;
+	//  5 if user or service or both not found (not exist);
+	//  9 if user has already been signed up to the service (no need in recovery);
+	//  13 if an internal error occurred
+	RecoverSignup(context.Context, *SignupRequest) (*emptypb.Empty, error)
+	// Login
+	//  opens a session for your existing signup (pair user and service) for
+	//  specific browser and device (ip and os)
+	// Takes:
+	//  - service_id of an existing service with an existing signup for the user
+	//  - likely to contain info about session: browser, os, ip
+	// Returns:
+	//  3 if arguments are not valid;
+	//  5 if signup not found;
+	//  6 if user has already been logged in on this devce in this browser (no
+	//  need to log in);
+	//  13 if an internal error occurred
+	Login(context.Context, *LoginRequest) (*Tokens, error)
+	// Relogin
+	//  sends new updated access token (if it's expired) and new refresh token
+	// Returns:
+	//  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has expired (need to ask user to log in again)
+	Relogin(context.Context, *RefreshToken) (*Tokens, error)
+	// Check
+	//  checks if your access token still be valid and unexpired
+	// Returns:
+	//  3 if access token cannot be treated as a JWT (you've sent rubbish);
+	//  13 if an internal error occurred
+	//  16 if access token is invalid or has expired (need to call Relogin rpc)
+	Check(context.Context, *AccessToken) (*emptypb.Empty, error)
+	// Logout
+	//  terminates current session, which is stored in refresh token
+	// Returns:
+	//  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has either expired or session has already been terminated
+	Logout(context.Context, *RefreshToken) (*emptypb.Empty, error)
+	// Returns:
+	//  3 if either type or access token cannot be treated as a JWT (you've sent rubbish);
+	//  13 if an internal error occurred;
+	//  16 if access token has expired (need to call Relogin rpc)
+	GetSessions(context.Context, *GetSessionsRequest) (*Sessions, error)
+	// Returns:
+	//  3 if access token cannot be treated as a JWT (you've sent rubbish);
+	//  13 if an internal error occurred
+	//  16 if access token is invalid or has expired (need to call Relogin rpc)
+	GetProfile(context.Context, *AccessToken) (*UserProfile, error)
+	// Returns:
+	//  3 if any new data is invalid;
+	//  13 if an internal error occurred
+	//  16 if access token is invalid or has expired (need to call Relogin rpc)
+	EditProfile(context.Context, *EditProfileRequest) (*emptypb.Empty, error)
+	// Returns:
+	//  3 if refresh token has invalid signature;
+	//  5 if user's credentials are invalid;
+	//  7 if user in credentials and user opened the session mismatch
+	//    (client probably has entered wrong password or
+	//    forgot which account is currently in use);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has either expired or session has already been
+	//  terminated (check note 2)
+	// Notes:
+	//  - this rpc is dangerous
+	//  - SSO will terminate ALL currently active sessions if 16 is returned
+	//    (you'll have to log in again from all devices);
+	//    To avoid this problem, get rid of the refresh token completely after
+	//    you've logged out
+	LogoutEverywhere(context.Context, *DangerousServiceRequest) (*emptypb.Empty, error)
+	// Takes:
+	//  - either login or email or phone, which identifies user's account
+	//  - password of the account
+	//  - refresh token (you must be logged in to clear terminated sessions)
+	// Returns:
+	//  3 if refresh token has invalid signature;
+	//  5 if user's credentials are invalid;
+	//  7 if user in credentials and user opened the session mismatch
+	//    (client probably has entered wrong password or
+	//    forgot which account is currently in use);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has either expired or session has already been
+	//  terminated (check note 2)
+	// Notes:
+	//  - this rpc is dangerous
+	//  - SSO will terminate ALL currently active sessions if 16 is returned
+	//    (you'll have to log in again from all devices);
+	//    To avoid this problem, get rid of the refresh token completely after
+	//    you've logged out
+	ClearTerminatedSessions(context.Context, *DangerousServiceRequest) (*emptypb.Empty, error)
+	// Signout
+	//  unlinks account from the current service;
+	//  It's like delete your account for the service.
+	//  You have a half of year to recover the signup before it will be deleted completely
+	// Takes:
+	//  - either login or email or phone, which identifies user's account
+	// Returns:
+	//  3 if refresh token has invalid signature;
+	//  5 if user's credentials are invalid;
+	//  7 if user in credentials and user opened the session mismatch
+	//    (client probably has entered wrong password or
+	//    forgot which account is currently in use);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has either expired or session has already been
+	//  terminated (check note 2)
+	// Notes:
+	//  - this rpc is dangerous
+	//  - SSO will terminate ALL currently active sessions if 16 is returned
+	//    (you'll have to log in again from all devices);
+	//    To avoid this problem, get rid of the refresh token completely after
+	//    you've logged out
+	Signout(context.Context, *DangerousServiceRequest) (*emptypb.Empty, error)
+	// SignoutEverywhere
+	//  unlinks your account from all services it's linked to
+	// Returns:
+	//  5 if user's credentials are invalid;
+	//  13 if an internal error occurred
+	// Notes:
+	//  - this rpc is so dangerous
+	SignoutEverywhere(context.Context, *UserCredentials) (*emptypb.Empty, error)
+	// Unregister
+	//  opposite for Register.
+	//  You have one year to recover the account before it will be deleted completely
+	// Takes:
+	//  - either login or email or phone, which identifies user's account
+	// Returns:
+	//  3 if refresh token has invalid signature;
+	//  5 if user's credentials are invalid;
+	//  7 if user in credentials and user opened the session mismatch
+	//    (client probably has entered wrong password or
+	//    forgot which account is currently in use);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has either expired or session has already been
+	//  terminated (check note 2)
+	// Notes:
+	//  - this rpc is dangerous
+	//  - SSO will terminate ALL currently active sessions if 16 is returned
+	//    (you'll have to log in again from all devices);
+	//    To avoid this problem, get rid of the refresh token completely after
+	//    you've logged out
+	Unregister(context.Context, *UserCredentials) (*emptypb.Empty, error)
 	mustEmbedUnimplementedAuthServer()
 }
 
@@ -76,14 +557,56 @@ type AuthServer interface {
 type UnimplementedAuthServer struct {
 }
 
-func (UnimplementedAuthServer) SignUp(context.Context, *AuthRequest) (*Token, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SignUp not implemented")
+func (UnimplementedAuthServer) Ping(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
-func (UnimplementedAuthServer) LogIn(context.Context, *AuthRequest) (*Token, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method LogIn not implemented")
+func (UnimplementedAuthServer) Register(context.Context, *UserCredentials) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
 }
-func (UnimplementedAuthServer) LogOut(context.Context, *Token) (*NullResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method LogOut not implemented")
+func (UnimplementedAuthServer) Recover(context.Context, *UserCredentials) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Recover not implemented")
+}
+func (UnimplementedAuthServer) Signup(context.Context, *SignupRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Signup not implemented")
+}
+func (UnimplementedAuthServer) RecoverSignup(context.Context, *SignupRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RecoverSignup not implemented")
+}
+func (UnimplementedAuthServer) Login(context.Context, *LoginRequest) (*Tokens, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Login not implemented")
+}
+func (UnimplementedAuthServer) Relogin(context.Context, *RefreshToken) (*Tokens, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Relogin not implemented")
+}
+func (UnimplementedAuthServer) Check(context.Context, *AccessToken) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Check not implemented")
+}
+func (UnimplementedAuthServer) Logout(context.Context, *RefreshToken) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
+}
+func (UnimplementedAuthServer) GetSessions(context.Context, *GetSessionsRequest) (*Sessions, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSessions not implemented")
+}
+func (UnimplementedAuthServer) GetProfile(context.Context, *AccessToken) (*UserProfile, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetProfile not implemented")
+}
+func (UnimplementedAuthServer) EditProfile(context.Context, *EditProfileRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EditProfile not implemented")
+}
+func (UnimplementedAuthServer) LogoutEverywhere(context.Context, *DangerousServiceRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LogoutEverywhere not implemented")
+}
+func (UnimplementedAuthServer) ClearTerminatedSessions(context.Context, *DangerousServiceRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClearTerminatedSessions not implemented")
+}
+func (UnimplementedAuthServer) Signout(context.Context, *DangerousServiceRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Signout not implemented")
+}
+func (UnimplementedAuthServer) SignoutEverywhere(context.Context, *UserCredentials) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignoutEverywhere not implemented")
+}
+func (UnimplementedAuthServer) Unregister(context.Context, *UserCredentials) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Unregister not implemented")
 }
 func (UnimplementedAuthServer) mustEmbedUnimplementedAuthServer() {}
 
@@ -98,56 +621,308 @@ func RegisterAuthServer(s grpc.ServiceRegistrar, srv AuthServer) {
 	s.RegisterService(&Auth_ServiceDesc, srv)
 }
 
-func _Auth_SignUp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AuthRequest)
+func _Auth_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthServer).SignUp(ctx, in)
+		return srv.(AuthServer).Ping(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/auth.Auth/SignUp",
+		FullMethod: "/auth.Auth/Ping",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).SignUp(ctx, req.(*AuthRequest))
+		return srv.(AuthServer).Ping(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Auth_LogIn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AuthRequest)
+func _Auth_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserCredentials)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthServer).LogIn(ctx, in)
+		return srv.(AuthServer).Register(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/auth.Auth/LogIn",
+		FullMethod: "/auth.Auth/Register",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).LogIn(ctx, req.(*AuthRequest))
+		return srv.(AuthServer).Register(ctx, req.(*UserCredentials))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Auth_LogOut_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Token)
+func _Auth_Recover_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserCredentials)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthServer).LogOut(ctx, in)
+		return srv.(AuthServer).Recover(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/auth.Auth/LogOut",
+		FullMethod: "/auth.Auth/Recover",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).LogOut(ctx, req.(*Token))
+		return srv.(AuthServer).Recover(ctx, req.(*UserCredentials))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_Signup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).Signup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/Signup",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).Signup(ctx, req.(*SignupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_RecoverSignup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).RecoverSignup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/RecoverSignup",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).RecoverSignup(ctx, req.(*SignupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_Login_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).Login(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/Login",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).Login(ctx, req.(*LoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_Relogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshToken)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).Relogin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/Relogin",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).Relogin(ctx, req.(*RefreshToken))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_Check_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccessToken)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).Check(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/Check",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).Check(ctx, req.(*AccessToken))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_Logout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshToken)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).Logout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/Logout",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).Logout(ctx, req.(*RefreshToken))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_GetSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).GetSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/GetSessions",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).GetSessions(ctx, req.(*GetSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_GetProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccessToken)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).GetProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/GetProfile",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).GetProfile(ctx, req.(*AccessToken))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_EditProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EditProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).EditProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/EditProfile",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).EditProfile(ctx, req.(*EditProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_LogoutEverywhere_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DangerousServiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).LogoutEverywhere(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/LogoutEverywhere",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).LogoutEverywhere(ctx, req.(*DangerousServiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_ClearTerminatedSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DangerousServiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).ClearTerminatedSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/ClearTerminatedSessions",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).ClearTerminatedSessions(ctx, req.(*DangerousServiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_Signout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DangerousServiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).Signout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/Signout",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).Signout(ctx, req.(*DangerousServiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_SignoutEverywhere_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserCredentials)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).SignoutEverywhere(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/SignoutEverywhere",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).SignoutEverywhere(ctx, req.(*UserCredentials))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_Unregister_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserCredentials)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).Unregister(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/Unregister",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).Unregister(ctx, req.(*UserCredentials))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -160,16 +935,72 @@ var Auth_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AuthServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "SignUp",
-			Handler:    _Auth_SignUp_Handler,
+			MethodName: "Ping",
+			Handler:    _Auth_Ping_Handler,
 		},
 		{
-			MethodName: "LogIn",
-			Handler:    _Auth_LogIn_Handler,
+			MethodName: "Register",
+			Handler:    _Auth_Register_Handler,
 		},
 		{
-			MethodName: "LogOut",
-			Handler:    _Auth_LogOut_Handler,
+			MethodName: "Recover",
+			Handler:    _Auth_Recover_Handler,
+		},
+		{
+			MethodName: "Signup",
+			Handler:    _Auth_Signup_Handler,
+		},
+		{
+			MethodName: "RecoverSignup",
+			Handler:    _Auth_RecoverSignup_Handler,
+		},
+		{
+			MethodName: "Login",
+			Handler:    _Auth_Login_Handler,
+		},
+		{
+			MethodName: "Relogin",
+			Handler:    _Auth_Relogin_Handler,
+		},
+		{
+			MethodName: "Check",
+			Handler:    _Auth_Check_Handler,
+		},
+		{
+			MethodName: "Logout",
+			Handler:    _Auth_Logout_Handler,
+		},
+		{
+			MethodName: "GetSessions",
+			Handler:    _Auth_GetSessions_Handler,
+		},
+		{
+			MethodName: "GetProfile",
+			Handler:    _Auth_GetProfile_Handler,
+		},
+		{
+			MethodName: "EditProfile",
+			Handler:    _Auth_EditProfile_Handler,
+		},
+		{
+			MethodName: "LogoutEverywhere",
+			Handler:    _Auth_LogoutEverywhere_Handler,
+		},
+		{
+			MethodName: "ClearTerminatedSessions",
+			Handler:    _Auth_ClearTerminatedSessions_Handler,
+		},
+		{
+			MethodName: "Signout",
+			Handler:    _Auth_Signout_Handler,
+		},
+		{
+			MethodName: "SignoutEverywhere",
+			Handler:    _Auth_SignoutEverywhere_Handler,
+		},
+		{
+			MethodName: "Unregister",
+			Handler:    _Auth_Unregister_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

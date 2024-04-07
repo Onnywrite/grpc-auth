@@ -2,8 +2,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
@@ -13,15 +11,16 @@ import (
 	"github.com/jackc/pgerrcode"
 )
 
-func (pg *Pg) SaveSignup(ctx context.Context, signup models.Signup) (*models.SavedSignup, error) {
-	const op = "postgres.Pg.SaveSignup"
+func (pg *Pg) SaveService(ctx context.Context, service *models.Service) (*models.SavedService, error) {
+	const op = "postgres.Pg.SaveService"
 
-	s, args, err := sq.Insert("signups").
-		Columns("user_fk", "service_fk").
-		Values(signup.UserId, signup.ServiceId).
-		Suffix("RETURNING signup_id, user_fk, service_fk, at, banned_at").
+	s, args, err := sq.Insert("services").
+		Columns("name", "owner_fk").
+		Values(service.Name, service.OwnerId).
+		Suffix(`RETURNING service_id, owner_fk, name`).
 		PlaceholderFormat(sq.Dollar).
 		ToSql()
+
 	if err != nil {
 		return nil, fmt.Errorf("squirrel %s: %w", op, err)
 	}
@@ -36,26 +35,29 @@ func (pg *Pg) SaveSignup(ctx context.Context, signup models.Signup) (*models.Sav
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
 		return nil, storage.ErrUniqueConstraint
 	}
-	if pgxerr.Is(err, pgerrcode.ForeignKeyViolation) {
-		return nil, storage.ErrFKConstraint
-	}
-
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	su := &models.SavedSignup{}
-	row.StructScan(su)
+	u := &models.SavedService{}
+	err = row.StructScan(u)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
 
-	return su, nil
+	return u, nil
 }
 
-func (pg *Pg) Signup(ctx context.Context, userId, serviceId int64) (*models.SavedSignup, error) {
-	const op = "postgres.Pg.Signup"
+func (pg *Pg) Service(ctx context.Context, id int64) (*models.SavedService, error) {
+	return pg.serviceBy(ctx, "service_id", id)
+}
 
-	s, args, err := sq.Select("signup_id", "user_fk", "service_fk", "at", "banned_at").
-		From("signups").
-		Where(sq.Eq{"user_fk": userId, "service_fk": serviceId}).
+func (pg *Pg) serviceBy(ctx context.Context, prop string, val any) (*models.SavedService, error) {
+	const op = "postgres.Pg.serviceBy"
+
+	s, args, err := sq.Select("services").
+		From("services").
+		Where(sq.Eq{prop: val}).
 		PlaceholderFormat(sq.Dollar).
 		ToSql()
 
@@ -68,15 +70,11 @@ func (pg *Pg) Signup(ctx context.Context, userId, serviceId int64) (*models.Save
 		return nil, fmt.Errorf("preparex %s: %w", op, err)
 	}
 
-	su := &models.SavedSignup{}
-	err = stmt.GetContext(ctx, su, args...)
-
+	saved := &models.SavedService{}
+	err = stmt.GetContext(ctx, saved, args...)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, storage.ErrEmptyResult
-		}
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return su, nil
+	return saved, nil
 }

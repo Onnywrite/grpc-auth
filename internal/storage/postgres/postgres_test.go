@@ -14,109 +14,224 @@ import (
 	"time"
 
 	"github.com/Onnywrite/grpc-auth/internal/models"
-	"github.com/Onnywrite/grpc-auth/internal/storage"
 	"github.com/Onnywrite/grpc-auth/internal/storage/postgres"
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	dbmu        = sync.Mutex{}
-	dbconnected = false
-	dbpg        *postgres.Pg
-)
+var pg *postgres.Pg
 
-func db(t *testing.T) *postgres.Pg {
-	dbmu.Lock()
-	if !dbconnected {
-		var err error
-		dbpg, err = postgres.NewPg("postgres://usr:pswd@localhost:5454/sso?sslmode=disable")
-		require.NoError(t, err)
-		dbconnected = true
-	}
-	dbmu.Unlock()
-	return dbpg
+type test[T any] struct {
+	name   string
+	expErr error
+	obj    T
 }
 
-func TestSaveUser(t *testing.T) {
-	pg := db(t)
+type testUser test[*models.User]
+type testService test[*models.Service]
 
-	ctxx, c := context.WithTimeout(context.Background(), time.Second)
-	defer c()
-
-	ptr := func(s string) *string {
-		return &s
-	}
-
-	tests := []struct {
-		name   string
-		ctx    context.Context
-		user   *models.User
-		expErr error
-	}{
-		{
-			name: "success",
-			ctx:  ctxx,
-			user: &models.User{
-				Login:    ptr("random login"),
-				Email:    nil,
-				Phone:    nil,
-				Password: "random",
-			},
-			expErr: nil,
-		},
-		{
-			name: "exists",
-			ctx:  ctxx,
-			user: &models.User{
-				Login:    ptr("random login"),
-				Email:    nil,
-				Phone:    nil,
-				Password: "random",
-			},
-			expErr: storage.ErrUserExists,
-		},
-	}
+func TestAll(t *testing.T) {
+	var err error
+	pg, err = postgres.NewPg("postgres://usr:pswd@dlocalhost:5454/sso?sslmode=disable")
+	require.NoError(t, err)
 
 	t.Parallel()
-	for _, tc := range tests {
-		t.Run(tc.name, func(tt *testing.T) {
-			saved, err := pg.SaveUser(tc.ctx, tc.user)
-			require.Equal(tt, tc.expErr, err)
-			if saved != nil {
-				require.GreaterOrEqual(tt, saved.Id, int64(1))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	users := SaveUserPipeline(ctx, t)
+	_ = users
+}
+
+func SaveUserPipeline(ctx context.Context, t *testing.T) <-chan *models.SavedUser {
+	tests := []testUser{
+		{
+			name:   "success",
+			expErr: nil,
+			obj: &models.User{
+				Login:    "onnywrite",
+				Password: "test_pswd",
+			},
+		},
+	}
+
+	users := SliceGen(ctx, tests)
+	savedCh := SaveUsersGen(ctx, t, users)
+
+	return savedCh
+}
+
+func SaveServicePipeline(ctx context.Context, t *testing.T, usersCh <-chan *models.SavedUser) <-chan *models.SavedService {
+	userdepTests := []testService{
+		{
+			name:   "success",
+			expErr: nil,
+			obj: &models.Service{
+				Name:    "test service 1",
+				OwnerId: -1,
+			},
+		},
+	}
+
+	tests := []testService{
+		{
+			name:   "success without user",
+			expErr: nil,
+			obj: &models.Service{
+				Name:    "test service 1",
+				OwnerId: 1,
+			},
+		},
+	}
+
+	userdepCh := SliceGen(ctx, userdepTests)
+	madeUserdep := MakeGen(ctx, userdepCh, usersCh, func(s testService, u *models.SavedUser) testService {
+		s.obj.OwnerId = u.Id
+		return s
+	})
+	testsCh := SliceGen(ctx, tests)
+
+	saved := SaveServiceGen(ctx, t, FanIn(ctx, madeUserdep, testsCh))
+
+	return saved
+}
+
+func SliceGen[T any](ctx context.Context, slice []T) <-chan T {
+	out := make(chan T, 10)
+
+	go func() {
+		defer close(out)
+		for i := range slice {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				out <- slice[i]
 			}
-		})
-	}
+		}
+	}()
+
+	return out
 }
 
-func TestSaveSignup(t *testing.T) {
-	pg := db(t)
+func MakeGen[T1, T2 any](ctx context.Context,
+	fillee <-chan T1,
+	filler <-chan T2,
+	makeFn func(fillee T1, filler T2) T1) <-chan T1 {
+	out := make(chan T1, 10)
 
-	ctxx, c := context.WithTimeout(context.Background(), time.Second)
-	defer c()
+	go func() {
+		defer close(out)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case obj, ok := <-filler:
+				if !ok {
+					return
+				}
+				obj2, ok := <-fillee
+				if !ok {
+					return
+				}
+				out <- makeFn(obj2, obj)
+			}
+		}
+	}()
 
-	tests := []struct {
-		name   string
-		ctx    context.Context
-		signup models.Signup
-		expErr error
-	}{
-		{
-			name: "success",
-			ctx:  ctxx,
-			signup: models.Signup{
-				UserId:    1,
-				ServiceId: 1,
-			},
-			expErr: nil,
-		},
+	return out
+}
+
+func FanIn[T any](ctx context.Context, channels ...<-chan T) <-chan T {
+	var wg sync.WaitGroup
+	out := make(chan T, 10)
+
+	for _, ch := range channels {
+		wg.Add(1)
+
+		go func(ch <-chan T) {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case x, ok := <-ch:
+					if !ok {
+						return
+					}
+					out <- x
+				}
+			}
+		}(ch)
 	}
 
-	t.Parallel()
-	for _, tc := range tests {
-		t.Run(tc.name, func(tt *testing.T) {
-			err := pg.SaveSignup(tc.ctx, tc.signup)
-			require.Equal(tt, tc.expErr, err)
-		})
-	}
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+
+	return out
+}
+
+func SaveUsersGen(ctx context.Context, t *testing.T, tests <-chan testUser) <-chan *models.SavedUser {
+	out := make(chan *models.SavedUser, 10)
+
+	go func() {
+		defer close(out)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case tc, ok := <-tests:
+				if !ok {
+					return
+				}
+				t.Run(tc.name, func(tt *testing.T) {
+					c, cancel := context.WithTimeout(context.Background(), time.Second)
+
+					saved, err := pg.SaveUser(c, tc.obj)
+					require.Equal(tt, err, tc.expErr)
+
+					if saved != nil {
+						out <- saved
+					}
+
+					cancel()
+				})
+			}
+		}
+	}()
+
+	return out
+}
+
+func SaveServiceGen(ctx context.Context, t *testing.T, tests <-chan testService) <-chan *models.SavedService {
+	out := make(chan *models.SavedService, 10)
+
+	go func() {
+		defer close(out)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case tc, ok := <-tests:
+				if !ok {
+					return
+				}
+				t.Run(tc.name, func(tt *testing.T) {
+					c, cancel := context.WithTimeout(context.Background(), time.Second)
+
+					saved, err := pg.SaveService(c, tc.obj)
+					require.Equal(tt, err, tc.expErr)
+
+					if saved != nil {
+						out <- saved
+					}
+
+					cancel()
+				})
+			}
+		}
+	}()
+
+	return out
 }

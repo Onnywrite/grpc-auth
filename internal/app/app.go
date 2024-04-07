@@ -5,29 +5,33 @@ import (
 	"os"
 	"time"
 
-	"github.com/Onnywrite/grpc-auth/internal/storage/postgres"
+	"github.com/Onnywrite/grpc-auth/internal/services/auth"
+	"github.com/Onnywrite/grpc-auth/internal/storage"
 )
+
+type Disconnector interface {
+	Disconnect() error
+}
 
 type App struct {
 	log  *slog.Logger
 	grpc *GRPCApp
-	db   *postgres.Pg
+	db   Disconnector
 }
 
-func New(logger *slog.Logger, conn string, tokenTTL time.Duration, grpcPort int, grpcTimeout time.Duration) *App {
+func New(logger *slog.Logger, conn string, tokenTTL, refreshTokenTTL time.Duration, grpcPort int, grpcTimeout time.Duration) *App {
 	const op = "app.New"
+	log := logger.With(slog.String("op", op))
 
-	db, err := postgres.NewPg(conn)
+	db, err := storage.New(conn)
 	if err != nil {
-		logger.Error("could not connect to pg database",
-			slog.String("op", op),
-			slog.String("err", err.Error()))
+		log.Error("could not connect to database(s)", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
-	//authService := auth.New(...)
+	authService := auth.New(logger, db, tokenTTL, refreshTokenTTL)
 
-	app := NewGRPC(logger, nil /*authService*/, grpcPort)
+	app := NewGRPC(logger, authService, grpcPort, grpcTimeout)
 
 	return &App{
 		grpc: app,
@@ -63,7 +67,7 @@ func (a *App) Stop() {
 	if err := a.db.Disconnect(); err != nil {
 		a.log.Error("could not disconnect from pg database",
 			slog.String("op", op),
-			slog.String("err", err.Error()))
+			slog.String("error", err.Error()))
 		return
 	}
 	a.log.Info("successfully disconnected from pg database", slog.String("op", op))
