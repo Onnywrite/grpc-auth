@@ -3,42 +3,46 @@ package auth
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/netip"
-	goos "os"
 	"time"
 
+	"github.com/Onnywrite/grpc-auth/internal/lib/tokens"
 	"github.com/Onnywrite/grpc-auth/internal/models"
-	"github.com/Onnywrite/grpc-auth/internal/storage"
+	storage "github.com/Onnywrite/grpc-auth/internal/storage/common"
 	"github.com/go-playground/validator/v10"
-	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-const (
-	tokenEnv = "TOKEN_SECRET"
-)
-
 var (
-	ErrUserRegistred      = errors.New("user already exists")
-	ErrUserNotExists      = errors.New("user does not exist")
-	ErrPasswordTooLong    = errors.New("password is longer than 72 bytes")
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrAlreadySignedUp    = errors.New("you've already signed up and can log in")
-	ErrAlreadyLoggedIn    = errors.New("you've already logged in")
-	ErrNoSuchService      = errors.New("service does not exist")
-	ErrInternal           = errors.New("internal error")
 	ErrInvalidIP          = errors.New("invalid IP")
-	ErrUnauthorized       = errors.New("unauthorized")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+
+	ErrUserAlreadyRegistered = errors.New("user already exists")
+	ErrUserNotExists         = errors.New("user does not exist")
+
+	ErrAlreadySignedUp = errors.New("you've already signed up and can log in")
+	ErrSignupDeleted   = errors.New("you've signed out")
+	ErrSignupNotExists = errors.New("signup does not exist")
+
+	ErrAlreadyLoggedIn = errors.New("you've already logged in")
+
+	ErrServiceNotExists = errors.New("service does not exist")
+
+	ErrSessionNotExists         = errors.New("sesson does not exist")
+	ErrSessionAlreadyTerminated = errors.New("session has already been terminated")
+
+	ErrInternal     = errors.New("internal error")
+	ErrUnauthorized = errors.New("unauthorized")
+	ErrTokenExpired = errors.New("token has expired")
 )
 
-func (a *AuthServiceImpl) Register(ctx context.Context, optLogin, optEmail, optPhone *string, password string) error {
-	const op = "auth.AuthServiceImpl.Register"
+func (a *AuthService) Register(ctx context.Context, optLogin, optEmail, optPhone *string, password string) error {
+	const op = "auth.AuthService.Register"
 	log := a.log.With(slog.String("op", op))
 
-	log.Debug("switching login")
+	log.Debug("switching login type")
 	var login string
 	switch {
 	case optLogin != nil:
@@ -55,7 +59,7 @@ func (a *AuthServiceImpl) Register(ctx context.Context, optLogin, optEmail, optP
 		login = *optPhone
 	}
 	log = log.With(slog.String("login", login))
-	log.Info("switched login")
+	log.Info("switched login type")
 
 	user := &models.User{
 		Login:    login,
@@ -73,22 +77,22 @@ func (a *AuthServiceImpl) Register(ctx context.Context, optLogin, optEmail, optP
 		log.Error("validation error", slog.String("error", err.Error()))
 		return ErrInvalidCredentials
 	}
+	log.Info("passed validation")
 
 	saved, err := a.db.SaveUser(ctx, user)
-	if errors.Is(err, storage.ErrUserExists) {
-		return ErrUserRegistred
+	if errors.Is(err, storage.ErrUniqueConstraint) {
+		return ErrUserAlreadyRegistered
 	}
 	if err != nil {
 		log.Error("saving error", slog.String("error", err.Error()))
 	}
-	log = log.With(slog.Int64("id", saved.Id))
-	log.Info("user registred")
+	log.Info("user registred", slog.Int64("id", saved.Id))
 
 	return nil
 }
 
-func (a *AuthServiceImpl) SignUp(ctx context.Context, key, password string, serviceId int64) error {
-	const op = "auth.AuthServiceImpl.SignUp"
+func (a *AuthService) Signup(ctx context.Context, key, password string, serviceId int64) error {
+	const op = "auth.AuthService.Signup"
 	log := a.log.With(slog.String("op", op), slog.String("key", key), slog.Int64("service_id", serviceId))
 
 	user, err := a.recognize(ctx, key)
@@ -106,15 +110,22 @@ func (a *AuthServiceImpl) SignUp(ctx context.Context, key, password string, serv
 	}
 	log.Info("password and hash match")
 
-	su, err := a.db.SaveSignup(ctx, models.Signup{
+	signup := models.Signup{
 		UserId:    user.Id,
 		ServiceId: serviceId,
-	})
-	if errors.Is(err, storage.ErrNoSuchPrimaryKey) {
-		log.Error("falied to save signup", slog.String("error", err.Error()))
-		return ErrUserNotExists
 	}
-	if err != nil {
+	su, err := a.db.SaveSignup(ctx, signup)
+	switch {
+	case errors.Is(err, storage.ErrUniqueConstraint):
+		log.Info("checking if user's signed out")
+		su, _ = a.db.Signup(ctx, signup.UserId, signup.ServiceId)
+		if su.IsDeleted() {
+			log.Error("signup deleted")
+			return ErrSignupDeleted
+		}
+		log.Error("signup exists")
+		return ErrAlreadySignedUp
+	case err != nil:
 		log.Error("failed to save signup", slog.String("error", err.Error()))
 		return ErrInternal
 	}
@@ -123,8 +134,8 @@ func (a *AuthServiceImpl) SignUp(ctx context.Context, key, password string, serv
 	return nil
 }
 
-func (a *AuthServiceImpl) LogIn(ctx context.Context, key, password string, serviceId int64, browser, os, ip string) (*models.Tokens, error) {
-	const op = "auth.AuthServiceImpl.LogIn"
+func (a *AuthService) Login(ctx context.Context, key, password string, serviceId int64, browser, os, ip string) (*models.Tokens, error) {
+	const op = "auth.AuthService.Login"
 	log := a.log.With(slog.String("op", op), slog.String("key", key),
 		slog.Int64("service_id", serviceId), slog.String("ip", ip), slog.String("os", os), slog.String("browser", browser))
 
@@ -139,6 +150,7 @@ func (a *AuthServiceImpl) LogIn(ctx context.Context, key, password string, servi
 	su, err := a.db.Signup(ctx, user.Id, serviceId)
 	if err != nil {
 		log.Error("signup not found")
+		return nil, ErrSignupNotExists
 	}
 	log = log.With(slog.Int64("signup_id", su.Id))
 	log.Info("user signed up")
@@ -158,7 +170,7 @@ func (a *AuthServiceImpl) LogIn(ctx context.Context, key, password string, servi
 	})
 	if err != nil {
 		log.Error("could not save session", slog.String("error", err.Error()))
-		if errors.Is(err, storage.ErrSessionExists) {
+		if errors.Is(err, storage.ErrUniqueConstraint) {
 			return nil, ErrAlreadyLoggedIn
 		}
 		return nil, ErrInternal
@@ -166,31 +178,27 @@ func (a *AuthServiceImpl) LogIn(ctx context.Context, key, password string, servi
 	log = log.With(slog.String("session_uuid", session.UUID.String()))
 	log.Info("saved session")
 
-	refreshTkn := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"session_uuid": session.UUID.String(),
-		"exp":          time.Now().Add(a.refreshTokenTTL).Unix(),
+	refresh, err := tokens.Refresh(&models.RefreshToken{
+		SessionUUID: session.UUID,
+		Exp:         time.Now().Add(a.tokenTTL).Unix(),
 	})
-
-	refresh, err := refreshTkn.SignedString(goos.Getenv(tokenEnv))
 	if err != nil {
-		log.Error("failed to sign access token", slog.String("error", err.Error()))
+		log.Error("cannot create refresh token", slog.String("error", err.Error()))
 		return nil, ErrInternal
 	}
 
-	accessTkn := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id":         su.UserId,
-		"login":      user.Login,
-		"service_id": su.ServiceId,
-		// probably custom type like models.Role
-		"roles": []string{},
-		"exp":   time.Now().Add(a.tokenTTL).Unix(),
+	access, err := tokens.Access(&models.AccessToken{
+		Id:        user.Id,
+		Login:     user.Login,
+		ServiceId: serviceId,
+		Roles:     []string{},
+		Exp:       time.Now().Add(a.refreshTokenTTL).Unix(),
 	})
-
-	access, err := accessTkn.SignedString(goos.Getenv(tokenEnv))
 	if err != nil {
-		log.Error("failed to sign access token", slog.String("error", err.Error()))
+		log.Error("cannot create refresh token", slog.String("error", err.Error()))
 		return nil, ErrInternal
 	}
+
 	log.Info("logged in successfully")
 
 	return &models.Tokens{
@@ -199,31 +207,54 @@ func (a *AuthServiceImpl) LogIn(ctx context.Context, key, password string, servi
 	}, nil
 }
 
-func (a *AuthServiceImpl) LogOut(ctx context.Context, refresh string) error {
-	const op = "auth.AuthServiceImpl.LogOut"
+func (a *AuthService) Logout(ctx context.Context, refresh string) error {
+	const op = "auth.AuthService.Logout"
 	log := a.log.With(slog.String("op", op))
 
-	token, err := a.processRefreshToken(refresh)
+	token, err := tokens.ParseRefresh(refresh)
+	if errors.Is(err, tokens.ErrTokenExpired) {
+		return ErrTokenExpired
+	}
 	if err != nil {
-		log.Error("could not process token", slog.String("token", refresh), slog.String("error", err.Error()))
+		log.Error("could not process refresh token", slog.String("token", refresh), slog.String("error", err.Error()))
 		return ErrUnauthorized
 	}
 	log = log.With(slog.String("session_uuid", token.SessionUUID.String()))
 	log.Info("token is processed")
 
-	err = a.db.DeleteSession(ctx, token.SessionUUID)
+	err = a.db.TerminateSession(ctx, token.SessionUUID)
+	if errors.Is(err, storage.ErrEmptyResult) {
+		log.Error("checking if session terminated", slog.String("error", err.Error()))
+		return a.checkIfSessionTerminated(ctx, token.SessionUUID)
+	}
 	if err != nil {
-		log.Error("could not delete session", slog.String("error", err.Error()))
-		// TODO:
-		return errors.New("TODO")
+		log.Error("could not terminate session", slog.String("error", err.Error()))
+		return err
 	}
 	log.Info("logged out successfully")
 
 	return nil
 }
 
-func (a *AuthServiceImpl) recognize(ctx context.Context, key string) (user *models.SavedUser, err error) {
-	const op = "auth.AuthServiceImpl.recognize"
+func (a *AuthService) checkIfSessionTerminated(ctx context.Context, uuid uuid.UUID) error {
+	const op = "auth.AuthService.checkIfSessionTerminated"
+	log := a.log.With("op", op)
+
+	session, err := a.db.Session(ctx, uuid)
+	if err != nil {
+		log.Error("session has been deleted", slog.String("error", err.Error()))
+		return ErrSessionNotExists
+	}
+	if session.IsTerminated() {
+		log.Error("session already terminated", slog.String("error", err.Error()))
+		return ErrSessionAlreadyTerminated
+	}
+
+	return nil
+}
+
+func (a *AuthService) recognize(ctx context.Context, key string) (user *models.SavedUser, err error) {
+	const op = "auth.AuthService.recognize"
 	log := a.log.With(slog.String("op", op))
 
 	validate := validator.New()
@@ -239,117 +270,15 @@ func (a *AuthServiceImpl) recognize(ctx context.Context, key string) (user *mode
 		log = log.With(slog.String("key_type", "login"))
 		user, err = a.db.UserByLogin(ctx, key)
 	}
-	if errors.Is(err, storage.ErrUserNotFound) {
-		log.Error("recieving user", slog.String("error", err.Error()))
+	if errors.Is(err, storage.ErrEmptyResult) {
+		log.Error("invalid credentials", slog.String("error", err.Error()))
 		return nil, ErrInvalidCredentials
 	}
 	if err != nil {
-		log.Error("recieving user", slog.String("error", err.Error()))
+		log.Error("internal error", slog.String("error", err.Error()))
 		return nil, ErrInternal
 	}
 	log.Info("switched key and recognized user", slog.Int64("id", user.Id))
 
 	return user, nil
-}
-
-var (
-	ErrUnexpectedSigningMethod = errors.New("unexpected signing method")
-	ErrTokenExpired            = errors.New("token has expired")
-)
-
-func (a *AuthServiceImpl) processAccessToken(tkn string) (*models.AccessToken, error) {
-	token, err := jwt.Parse(tkn, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, ErrUnexpectedSigningMethod
-		}
-
-		return []byte(goos.Getenv(tokenEnv)), nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		exp := claims["exp"].(float64)
-
-		if float64(time.Now().Unix()) > exp {
-			return nil, ErrTokenExpired
-		}
-
-		id, ok := claims["id"].(float64)
-		if !ok {
-			return nil, fmt.Errorf("could not convert 'id' to int64")
-		}
-		login, ok := claims["login"].(string)
-		if !ok {
-			return nil, fmt.Errorf("could not convert 'login' to string")
-		}
-		serviceId, ok := claims["service_id"].(float64)
-		if !ok {
-			return nil, fmt.Errorf("could not convert 'service_id' to int64")
-		}
-		roles, ok := claims["roles"].([]string)
-		if !ok {
-			return nil, fmt.Errorf("could not convert 'roles' to []string")
-		}
-
-		token := &models.AccessToken{
-			Id:        int64(id),
-			Login:     login,
-			ServiceId: int64(serviceId),
-			Roles:     roles,
-			Exp:       int64(exp),
-		}
-
-		return token, nil
-	}
-
-	return nil, err
-}
-
-func (a *AuthServiceImpl) processRefreshToken(tkn string) (*models.RefreshToken, error) {
-	const op = "auth.AuthServiceImpl.processRefreshToken"
-	log := a.log.With(slog.String("op", op))
-
-	token, err := jwt.Parse(tkn, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, ErrUnexpectedSigningMethod
-		}
-
-		return []byte(goos.Getenv(tokenEnv)), nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		exp := claims["exp"].(float64)
-
-		if float64(time.Now().Unix()) > exp {
-			return nil, ErrTokenExpired
-		}
-
-		sessionUUIDStr, ok := claims["session_uuid"].(string)
-		if !ok {
-			log.Error("could not convert 'session_uuid' to uuid.UUID")
-			return nil, ErrInternal
-		}
-		sessionUUID, err := uuid.Parse(sessionUUIDStr)
-		if err != nil {
-			log.Error("could not convert 'session_uuid' to uuid.UUID",
-				slog.String("session_uuid_str", sessionUUIDStr))
-			return nil, ErrInternal
-		}
-
-		token := &models.RefreshToken{
-			SessionUUID: sessionUUID,
-			Exp:         int64(exp),
-		}
-
-		return token, nil
-	}
-
-	return nil, err
 }
