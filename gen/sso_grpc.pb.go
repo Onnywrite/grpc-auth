@@ -50,10 +50,9 @@ type AuthClient interface {
 	//  - user_password of an existing user
 	//  - service_id of an existing service
 	// Returns:
-	//  3 if arguments are not valid;
-	//  5 if user or service or both not found (not exist);
+	//  5 if user or service or both not found;
 	//  6 if user has already been signed up to the service;
-	//  9 if user has signed out and can recover its account via RecoverSignup rpc;
+	//  9 if user has signed out and can recover their account via RecoverSignup rpc;
 	//  13 if an internal error occurred
 	Signup(ctx context.Context, in *SignupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// RecoverSignup
@@ -76,7 +75,7 @@ type AuthClient interface {
 	//  - likely to contain info about session: browser, os, ip
 	// Returns:
 	//  3 if arguments are not valid;
-	//  5 if signup not found (you've not been signed up yet);
+	//  5 if signup not found;
 	//  6 if user has already been logged in on this devce in this browser (no
 	//  need to log in);
 	//  13 if an internal error occurred
@@ -100,14 +99,7 @@ type AuthClient interface {
 	// Returns:
 	//  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
 	//  13 if an internal error occurred;
-	//  16 if refresh token has either expired or session has already been
-	//  terminated (check note 1)
-	// Notes:
-	//  - you must not use that refresh token again;
-	//    If you do, the SSO will terminate ALL currently active sessions
-	//    (you'll have to log in again from all devices);
-	//    To avoid this problem, get rid of the refresh token completely after
-	//    you've logged out
+	//  16 if refresh token has either expired or session has already been terminated
 	Logout(ctx context.Context, in *RefreshToken, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Returns:
 	//  3 if either type or access token cannot be treated as a JWT (you've sent rubbish);
@@ -405,10 +397,9 @@ type AuthServer interface {
 	//  - user_password of an existing user
 	//  - service_id of an existing service
 	// Returns:
-	//  3 if arguments are not valid;
-	//  5 if user or service or both not found (not exist);
+	//  5 if user or service or both not found;
 	//  6 if user has already been signed up to the service;
-	//  9 if user has signed out and can recover its account via RecoverSignup rpc;
+	//  9 if user has signed out and can recover their account via RecoverSignup rpc;
 	//  13 if an internal error occurred
 	Signup(context.Context, *SignupRequest) (*emptypb.Empty, error)
 	// RecoverSignup
@@ -431,7 +422,7 @@ type AuthServer interface {
 	//  - likely to contain info about session: browser, os, ip
 	// Returns:
 	//  3 if arguments are not valid;
-	//  5 if signup not found (you've not been signed up yet);
+	//  5 if signup not found;
 	//  6 if user has already been logged in on this devce in this browser (no
 	//  need to log in);
 	//  13 if an internal error occurred
@@ -455,14 +446,7 @@ type AuthServer interface {
 	// Returns:
 	//  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
 	//  13 if an internal error occurred;
-	//  16 if refresh token has either expired or session has already been
-	//  terminated (check note 1)
-	// Notes:
-	//  - you must not use that refresh token again;
-	//    If you do, the SSO will terminate ALL currently active sessions
-	//    (you'll have to log in again from all devices);
-	//    To avoid this problem, get rid of the refresh token completely after
-	//    you've logged out
+	//  16 if refresh token has either expired or session has already been terminated
 	Logout(context.Context, *RefreshToken) (*emptypb.Empty, error)
 	// Returns:
 	//  3 if either type or access token cannot be treated as a JWT (you've sent rubbish);

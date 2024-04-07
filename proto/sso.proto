@@ -42,10 +42,9 @@ service Auth {
   //  - user_password of an existing user
   //  - service_id of an existing service
   // Returns:
-  //  3 if arguments are not valid;
-  //  5 if user or service or both not found (not exist);
+  //  5 if user or service or both not found;
   //  6 if user has already been signed up to the service;
-  //  9 if user has signed out and can recover its account via RecoverSignup rpc;
+  //  9 if user has signed out and can recover their account via RecoverSignup rpc;
   //  13 if an internal error occurred
   rpc Signup(SignupRequest) returns (google.protobuf.Empty);
 
@@ -70,7 +69,7 @@ service Auth {
   //  - likely to contain info about session: browser, os, ip
   // Returns:
   //  3 if arguments are not valid;
-  //  5 if signup not found (you've not been signed up yet);
+  //  5 if signup not found;
   //  6 if user has already been logged in on this devce in this browser (no
   //  need to log in);
   //  13 if an internal error occurred
@@ -99,14 +98,7 @@ service Auth {
   // Returns:
   //  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
   //  13 if an internal error occurred;
-  //  16 if refresh token has either expired or session has already been
-  //  terminated (check note 1)
-  // Notes:
-  //  - you must not use that refresh token again;
-  //    If you do, the SSO will terminate ALL currently active sessions
-  //    (you'll have to log in again from all devices);
-  //    To avoid this problem, get rid of the refresh token completely after
-  //    you've logged out
+  //  16 if refresh token has either expired or session has already been terminated 
   rpc Logout(RefreshToken) returns (google.protobuf.Empty);
   
   // Returns:
@@ -231,22 +223,28 @@ message UserCredentials {
 };
 
 message SignupRequest {
-  UserCredentials credentials = 1;
-  int64 service_id = 2;
+  oneof credential {
+    string login = 1;
+    string email = 2;
+    string phone = 3;
+  }
+  int64 service_id = 4;
 };
 
 message LoginRequest {
   SignupRequest signup = 1;
+  SessionInfo session_info = 2;
+};
+
+message SessionInfo {
   optional string browser = 2;
   optional string os = 3;
   optional string ip = 4;
 };
 
 message Session {
-  optional string browser = 1;
-  optional string os = 2;
-  optional string ip = 3;
-  optional google.protobuf.Timestamp terminated_at = 4;
+  SessionInfo info = 1;
+  optional google.protobuf.Timestamp terminated_at = 2;
 };
 
 message AccessToken { string token = 1; }
