@@ -49,7 +49,7 @@ func (pg *Pg) SaveSession(ctx context.Context, session *models.Session) (*models
 		Browser      string
 		OS           string
 		CreatedAt    time.Time `db:"at"`
-		TerminatedAt time.Time
+		TerminatedAt *time.Time
 	}
 
 	scanned := &scannedSession{}

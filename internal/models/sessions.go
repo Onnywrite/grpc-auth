@@ -21,7 +21,7 @@ type SavedSession struct {
 	Browser      string
 	OS           string
 	CreatedAt    time.Time `db:"at"`
-	TerminatedAt time.Time
+	TerminatedAt *time.Time
 }
 
 func (s *SavedSession) IsTerminated() bool {
