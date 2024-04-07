@@ -102,7 +102,7 @@ func (a *AuthService) Register(ctx context.Context, optLogin, optEmail, optPhone
 //	ErrAlreadySignedUp
 //	ErrInternal
 func (a *AuthService) Signup(ctx context.Context, identifier models.UserIdentifier, serviceId int64) error {
-	const op = "auth.AuthService.SignupBy"
+	const op = "auth.AuthService.Signup"
 	log := a.log.With(slog.String("op", op), slog.Any("identifier", identifier), slog.Int64("service_id", serviceId))
 
 	user, err := a.db.UserBy(ctx, identifier)
@@ -156,7 +156,7 @@ func (a *AuthService) Signup(ctx context.Context, identifier models.UserIdentifi
 //	ErrAlreadyLoggedIn
 //	ErrInternal
 func (a *AuthService) Login(ctx context.Context, identifier models.UserIdentifier, sessionInfo models.SessionInfo, serviceId int64) (*models.Tokens, error) {
-	const op = "auth.AuthService.LoginBy"
+	const op = "auth.AuthService.Login"
 	log := a.log.With(slog.String("op", op), slog.Any("identifier", identifier), slog.Any("session", sessionInfo))
 
 	if err := validator.New().Struct(sessionInfo); err != nil {
@@ -191,8 +191,9 @@ func (a *AuthService) Login(ctx context.Context, identifier models.UserIdentifie
 		Info:      sessionInfo,
 	}
 	saved, err := a.db.SaveSession(ctx, session)
-	log.Error("could not save session", slog.String("error", err.Error()))
 	if errors.Is(err, storage.ErrUniqueConstraint) {
+		log.Error("could not save session", slog.String("error", err.Error()))
+		// TODO: not done
 		a.checkIfSessionTerminated(ctx, session)
 		return nil, ErrAlreadyLoggedIn
 	}
