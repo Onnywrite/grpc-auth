@@ -7,7 +7,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/Onnywrite/grpc-auth/internal/lib/pgxerr"
 	"github.com/Onnywrite/grpc-auth/internal/models"
-	"github.com/Onnywrite/grpc-auth/internal/storage"
+	storage "github.com/Onnywrite/grpc-auth/internal/storage/common"
 	"github.com/jackc/pgerrcode"
 )
 
