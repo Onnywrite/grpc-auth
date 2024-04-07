@@ -23,3 +23,10 @@ type SavedSession struct {
 	CreatedAt    time.Time `db:"at"`
 	TerminatedAt time.Time
 }
+
+func (s *SavedSession) IsTerminated() bool {
+	if s.TerminatedAt != nil {
+		return true
+	}
+	return false
+}
