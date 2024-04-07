@@ -246,7 +246,7 @@ func (a *AuthService) checkIfSessionTerminated(ctx context.Context, uuid uuid.UU
 		return ErrSessionNotExists
 	}
 	if session.IsTerminated() {
-		log.Error("session already terminated", slog.String("error", err.Error()))
+		log.Error("session already terminated")
 		return ErrSessionAlreadyTerminated
 	}
 
