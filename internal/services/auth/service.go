@@ -6,23 +6,21 @@ import (
 	"time"
 
 	"github.com/Onnywrite/grpc-auth/internal/models"
-	"github.com/google/uuid"
 )
 
 type Storage interface {
 	SaveUser(ctx context.Context, user *models.User) (*models.SavedUser, error)
-	UserById(ctx context.Context, id int64) (*models.SavedUser, error)
-	UserByLogin(ctx context.Context, login string) (*models.SavedUser, error)
-	UserByEmail(ctx context.Context, email string) (*models.SavedUser, error)
-	UserByPhone(ctx context.Context, phone string) (*models.SavedUser, error)
+	UserBy(ctx context.Context, user models.UserIdentifier) (*models.SavedUser, error)
 
 	SaveSignup(ctx context.Context, signup models.Signup) (*models.SavedSignup, error)
 	Signup(ctx context.Context, userId, serviceId int64) (*models.SavedSignup, error)
 
 	SaveSession(ctx context.Context, session *models.Session) (*models.SavedSession, error)
-	Session(ctx context.Context, uuid uuid.UUID) (*models.SavedSession, error)
-	TerminateSession(ctx context.Context, uuid uuid.UUID) error
-	DeleteSession(ctx context.Context, uuid uuid.UUID) error
+	SessionById(ctx context.Context, uuid string) (*models.SavedSession, error)
+	Session(ctx context.Context, session *models.Session) (*models.SavedSession, error)
+	TerminateSession(ctx context.Context, uuid string) error
+	// ReviveSession(ctx context.Context, uuid string) error
+	DeleteSession(ctx context.Context, uuid string) error
 }
 
 type AuthService struct {
