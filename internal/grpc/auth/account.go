@@ -13,10 +13,10 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-var (
-	invalidCredentials     = "invalid credentials"
-	invalidLoginOrPassword = "invalid login or password"
-)
+//var (
+//invalidCredentials     = "invalid credentials"
+//invalidLoginOrPassword = "invalid login or password"
+//)
 
 func (a authServer) Register(c context.Context, u *gen.UserCredentials) (*emptypb.Empty, error) {
 	err := a.service.Register(c, u.Login, u.Email, u.Phone, u.Password)
@@ -48,31 +48,18 @@ func (authServer) Recover(context.Context, *gen.UserCredentials) (*emptypb.Empty
 }
 
 func (a authServer) Signup(c context.Context, r *gen.SignupRequest) (*emptypb.Empty, error) {
-	if r.Credentials == nil {
-		return nil, status.Error(codes.InvalidArgument, "credentials are null")
-	}
-
-	var err error
+	var id models.UserIdentifier
 	switch {
-	case r.Credentials.Login != nil:
-		err = a.service.Signup(c, models.UserIdentifier{
-			Key:      "login",
-			Value:    *r.Credentials.Login,
-			Password: r.Credentials.Password,
-		}, r.ServiceId)
-	case r.Credentials.Email != nil:
-		err = a.service.Signup(c, models.UserIdentifier{
-			Key:      "email",
-			Value:    *r.Credentials.Login,
-			Password: r.Credentials.Password,
-		}, r.ServiceId)
-	case r.Credentials.Phone != nil:
-		err = a.service.Signup(c, models.UserIdentifier{
-			Key:      "phone",
-			Value:    *r.Credentials.Login,
-			Password: r.Credentials.Password,
-		}, r.ServiceId)
+	case r.GetLogin() != "":
+		id = models.UserIdentifier{Key: "login", Value: r.GetLogin()}
+	case r.GetEmail() != "":
+		id = models.UserIdentifier{Key: "email", Value: r.GetEmail()}
+	case r.GetPhone() != "":
+		id = models.UserIdentifier{Key: "phone", Value: r.GetPhone()}
 	}
+	id.Password = r.Password
+
+	err := a.service.Signup(c, id, r.ServiceId)
 
 	if errors.Is(err, auth.ErrInvalidCredentials) {
 		return nil, status.Error(codes.NotFound, "user or service not found")
@@ -93,11 +80,29 @@ func (authServer) RecoverSignup(context.Context, *gen.SignupRequest) (*emptypb.E
 	return nil, status.Errorf(codes.Unimplemented, "method RecoverSignup not implemented")
 }
 
+// TODO: need rollback (delete session, if an error occured while creating tokens)
 func (a authServer) Login(c context.Context, r *gen.LoginRequest) (*gen.Tokens, error) {
-	if r.Signup == nil || r.Signup.Credentials == nil {
-		return nil, status.Error(codes.InvalidArgument, "signup or credentials are null")
+	if r.Signup == nil {
+		return nil, status.Error(codes.InvalidArgument, "signup must not be null")
 	}
-	
+
+	var id models.UserIdentifier
+	switch {
+	case r.Signup.GetLogin() != "":
+		id = models.UserIdentifier{Key: "login", Value: r.Signup.GetLogin()}
+	case r.Signup.GetEmail() != "":
+		id = models.UserIdentifier{Key: "email", Value: r.Signup.GetEmail()}
+	case r.Signup.GetPhone() != "":
+		id = models.UserIdentifier{Key: "phone", Value: r.Signup.GetPhone()}
+	}
+	id.Password = r.Signup.Password
+
+	tokens, err := a.service.Login(c, id, models.SessionInfo{
+		Browser: r.SessionInfo.Browser,
+		Ip:      r.SessionInfo.Ip,
+		OS:      r.SessionInfo.Os,
+	}, r.Signup.ServiceId)
+
 	if ve, ok := err.(ve.ValidationErrorsList); ok {
 		return nil, status.Error(codes.InvalidArgument, ve.JSON())
 	}
