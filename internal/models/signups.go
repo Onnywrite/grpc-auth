@@ -15,3 +15,10 @@ type SavedSignup struct {
 	BannedAt  *time.Time `db:"banned_at"`
 	DeletedAt *time.Time `db:"deleted_at"`
 }
+
+func (su *SavedSignup) IsDeleted() bool {
+	if su.DeletedAt != nil {
+		return true
+	}
+	return false
+}
