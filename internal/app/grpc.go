@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"time"
 
 	grpcauth "github.com/Onnywrite/grpc-auth/internal/grpc/auth"
 	"google.golang.org/grpc"
@@ -15,8 +16,8 @@ type GRPCApp struct {
 	port   string
 }
 
-func NewGRPC(logger *slog.Logger, service grpcauth.AuthService, port int) *GRPCApp {
-	s := grpc.NewServer()
+func NewGRPC(logger *slog.Logger, service grpcauth.AuthService, port int, timeout time.Duration) *GRPCApp {
+	s := grpc.NewServer(grpc.ConnectionTimeout(timeout))
 
 	// add middlewares if possible
 
@@ -42,7 +43,7 @@ func (a *GRPCApp) Start() error {
 	if err != nil {
 		a.log.Error("error while starting gRPC",
 			slog.String("op", op),
-			slog.String("err", err.Error()),
+			slog.String("error", err.Error()),
 		)
 		return err
 	}
@@ -54,7 +55,7 @@ func (a *GRPCApp) Start() error {
 	if err := a.server.Serve(lis); err != nil {
 		a.log.Error("error while starting gRPC",
 			slog.String("op", op),
-			slog.String("err", err.Error()),
+			slog.String("error", err.Error()),
 		)
 		return err
 	}

@@ -21,7 +21,7 @@ func main() {
 
 	logger := setupLogger(cfg.Environment)
 
-	application := app.New(logger, cfg.Conn, cfg.TokenTTL, cfg.GRPC.Port, cfg.GRPC.Timeout)
+	application := app.New(logger, cfg.Conn, cfg.TokenTTL, cfg.RefreshTokenTTL, cfg.GRPC.Port, cfg.GRPC.Timeout)
 	go application.MustStart()
 
 	shut := make(chan os.Signal, 1)
