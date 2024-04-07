@@ -228,7 +228,8 @@ message SignupRequest {
     string email = 2;
     string phone = 3;
   }
-  int64 service_id = 4;
+  string password = 4;
+  int64 service_id = 5;
 };
 
 message LoginRequest {
