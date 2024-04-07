@@ -32,10 +32,6 @@ func ParseRefresh(tkn string) (*models.RefreshToken, error) {
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		exp := claims["exp"].(float64)
 
-		if float64(time.Now().Unix()) > exp {
-			return nil, ErrTokenExpired
-		}
-
 		sessionUUIDStr, ok := claims["session_uuid"].(string)
 		if !ok {
 			return nil, ErrInvalidData
@@ -50,6 +46,9 @@ func ParseRefresh(tkn string) (*models.RefreshToken, error) {
 			Exp:         int64(exp),
 		}
 
+		if float64(time.Now().Unix()) > exp {
+			return token, ErrTokenExpired
+		}
 		return token, nil
 	}
 

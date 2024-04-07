@@ -35,10 +35,6 @@ func ParseAccess(tkn string) (*models.AccessToken, error) {
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		exp := claims["exp"].(float64)
 
-		if float64(time.Now().Unix()) > exp {
-			return nil, ErrTokenExpired
-		}
-
 		id, ok := claims["id"].(float64)
 		if !ok {
 			return nil, fmt.Errorf("could not convert 'id' to int64")
@@ -64,6 +60,9 @@ func ParseAccess(tkn string) (*models.AccessToken, error) {
 			Exp:       int64(exp),
 		}
 
+		if float64(time.Now().Unix()) > exp {
+			return token, ErrTokenExpired
+		}
 		return token, nil
 	}
 
