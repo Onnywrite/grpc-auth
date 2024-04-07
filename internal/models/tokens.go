@@ -1,7 +1,5 @@
 package models
 
-import "github.com/google/uuid"
-
 type Tokens struct {
 	Refresh, Access string
 }
@@ -15,6 +13,6 @@ type AccessToken struct {
 }
 
 type RefreshToken struct {
-	SessionUUID uuid.UUID
+	SessionUUID string
 	Exp         int64
 }

@@ -3,8 +3,8 @@ package models
 import "time"
 
 type Signup struct {
-	UserId    int64 `db:"user_fk"`
-	ServiceId int64 `db:"service_fk"`
+	UserId    int64 `db:"user_fk" validate:"gte=0"`
+	ServiceId int64 `db:"service_fk" validate:"gte=0"`
 }
 
 type SavedSignup struct {
@@ -17,8 +17,5 @@ type SavedSignup struct {
 }
 
 func (su *SavedSignup) IsDeleted() bool {
-	if su.DeletedAt != nil {
-		return true
-	}
-	return false
+	return su.DeletedAt != nil
 }

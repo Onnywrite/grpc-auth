@@ -6,12 +6,11 @@ import (
 
 	"github.com/Onnywrite/grpc-auth/internal/models"
 	"github.com/golang-jwt/jwt"
-	"github.com/google/uuid"
 )
 
 func Refresh(token *models.RefreshToken) (string, error) {
 	return New(jwt.MapClaims{
-		"session_uuid": token.SessionUUID.String(),
+		"session_uuid": token.SessionUUID,
 		"exp":          token.Exp,
 	})
 }
@@ -32,12 +31,8 @@ func ParseRefresh(tkn string) (*models.RefreshToken, error) {
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		exp := claims["exp"].(float64)
 
-		sessionUUIDStr, ok := claims["session_uuid"].(string)
+		sessionUUID, ok := claims["session_uuid"].(string)
 		if !ok {
-			return nil, ErrInvalidData
-		}
-		sessionUUID, err := uuid.Parse(sessionUUIDStr)
-		if err != nil {
 			return nil, ErrInvalidData
 		}
 

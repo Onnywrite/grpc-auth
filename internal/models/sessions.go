@@ -1,32 +1,29 @@
 package models
 
-import (
-	"net/netip"
-	"time"
-
-	"github.com/google/uuid"
-)
+import "time"
 
 type Session struct {
-	UserId, ServiceId int64
-	IP                netip.Addr
-	Browser           *string
-	OS                *string
+	UserId    int64 `validate:"gte=0"`
+	ServiceId int64 `validate:"gte=0"`
+	Info      SessionInfo
 }
 
 type SavedSession struct {
-	UUID         uuid.UUID `db:"session_uuid"`
-	SignupId     int64     `db:"signup_fk"`
-	IP           netip.Addr
-	Browser      string
-	OS           string
-	CreatedAt    time.Time `db:"at"`
-	TerminatedAt *time.Time
+	UUID         string     `db:"session_uuid"`
+	SignupId     int64      `db:"signup_fk"`
+	Browser      *string    `db:"browser"`
+	IP           *string    `db:"ip"`
+	OS           *string    `db:"os"`
+	CreatedAt    time.Time  `db:"at"`
+	TerminatedAt *time.Time `db:"terminated_at"`
 }
 
 func (s *SavedSession) IsTerminated() bool {
-	if s.TerminatedAt != nil {
-		return true
-	}
-	return false
+	return s.TerminatedAt != nil
+}
+
+type SessionInfo struct {
+	Browser *string `validate:"alphanumunicode"`
+	Ip      *string `validate:"ip"`
+	OS      *string `validate:"ascii"`
 }
