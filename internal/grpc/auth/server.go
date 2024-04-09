@@ -10,9 +10,9 @@ import (
 )
 
 type AuthService interface {
-	Register(ctx context.Context, optLogin, optEmail, optPhone *string, password string, info models.SessionInfo) (*gen.IdTokens, error)
-	// Recover(ctx context.Context, optLogin, optEmail, optPhone *string, password string, info models.SessionInfo) (*gen.IdTokens, error)
-	Login(ctx context.Context, optLogin, optEmail, optPhone *string, password string, info models.SessionInfo) (*gen.IdTokens, error)
+	Register(ctx context.Context, user *models.User, info models.SessionInfo) (*gen.IdTokens, error)
+	// Recover(ctx context.Context, user *models.User, info models.SessionInfo) (*gen.IdTokens, error)
+	Login(ctx context.Context, user *models.User, info models.SessionInfo) (*gen.IdTokens, error)
 	Logout(ctx context.Context, idToken string) error
 
 	Signup(ctx context.Context, idToken string, serviceId int64) (*gen.AppTokens, error)
