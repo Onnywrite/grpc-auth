@@ -26,14 +26,31 @@ service Auth {
   //  6 if user with these credentials already exists;
   //  9 if user has unregistred and can recover its account via Recover;
   //  13 if an internal error occurred
-  rpc Register(UserCredentials) returns (google.protobuf.Empty);
+  // TODO: write docs
+  rpc Register(InRequest) returns (IdTokens);
 
   // Returns:
   //  3 if arguments are not valid;
   //  5 if user not found;
   //  9 if user has already been signed up to the service (no need in recovery);
   //  13 if an internal error occurred
-  rpc Recover(UserCredentials) returns (google.protobuf.Empty);
+  rpc Recover(InRequest) returns (IdTokens);
+
+  // Login
+  //  TODO
+  // Takes:
+  //  - likely to contain info about session: browser, os, ip
+  // Returns:
+  //  3 if arguments are not valid;
+  //  5 if signup not found;
+  //  6 if user has already been logged in on this devce in this browser (no
+  //  need to log in);
+  //  13 if an internal error occurred
+  rpc Login(InRequest) returns (IdTokens);
+
+  // TODO (maybe) rpc Relogin
+
+  // Protected RPCs (need tokens)
 
   // Signup
   //  links your registered (existing) account to an existing service by its id
@@ -44,9 +61,9 @@ service Auth {
   // Returns:
   //  5 if user or service or both not found;
   //  6 if user has already been signed up to the service;
-  //  9 if user has signed out and can recover their account via RecoverSignup rpc;
-  //  13 if an internal error occurred
-  rpc Signup(SignupRequest) returns (google.protobuf.Empty);
+  //  9 if user has signed out and can recover their account via RecoverSignup
+  //  rpc; 13 if an internal error occurred
+  rpc Signup(AppRequest) returns (AppTokens);
 
   // RecoverSignup
   //  recover your registered (existing) signup if it's been signed out
@@ -59,23 +76,9 @@ service Auth {
   //  5 if user or service or both not found (not exist);
   //  9 if user has already been signed up to the service (no need in recovery);
   //  13 if an internal error occurred
-  rpc RecoverSignup(SignupRequest) returns (google.protobuf.Empty);
+  rpc RecoverSignup(AppRequest) returns (AppTokens);
 
-  // Login
-  //  opens a session for your existing signup (pair user and service) for
-  //  specific browser and device (ip and os)
-  // Takes:
-  //  - service_id of an existing service with an existing signup for the user
-  //  - likely to contain info about session: browser, os, ip
-  // Returns:
-  //  3 if arguments are not valid;
-  //  5 if signup not found;
-  //  6 if user has already been logged in on this devce in this browser (no
-  //  need to log in);
-  //  13 if an internal error occurred
-  rpc Login(LoginRequest) returns (Tokens);
-
-  // Protected RPCs (need tokens)
+  rpc Signin(AppRequest) returns (AppTokens);
 
   // Relogin
   //  sends new updated access token (if it's expired) and new refresh token
@@ -83,7 +86,16 @@ service Auth {
   //  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
   //  13 if an internal error occurred;
   //  16 if refresh token has expired (need to ask user to log in again)
-  rpc Relogin(RefreshToken) returns (Tokens);
+  rpc Resignin(RefreshToken) returns (AppTokens);
+
+  // Logout
+  //  terminates current session, which is stored in refresh token
+  // Returns:
+  //  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
+  //  13 if an internal error occurred;
+  //  16 if refresh token has either expired or session has already been
+  //  terminated
+  rpc Signout(RefreshToken) returns (google.protobuf.Empty);
 
   // Check
   //  checks if your access token still be valid and unexpired
@@ -92,33 +104,25 @@ service Auth {
   //  13 if an internal error occurred
   //  16 if access token is invalid or has expired (need to call Relogin rpc)
   rpc Check(AccessToken) returns (google.protobuf.Empty);
-  
-  // Logout
-  //  terminates current session, which is stored in refresh token
+
   // Returns:
-  //  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
-  //  13 if an internal error occurred;
-  //  16 if refresh token has either expired or session has already been terminated 
-  rpc Logout(RefreshToken) returns (google.protobuf.Empty);
-  
-  // Returns:
-  //  3 if either type or access token cannot be treated as a JWT (you've sent rubbish);
-  //  13 if an internal error occurred;
-  //  16 if access token has expired (need to call Relogin rpc)
+  //  3 if either type or access token cannot be treated as a JWT (you've sent
+  //  rubbish); 13 if an internal error occurred; 16 if access token has expired
+  //  (need to call Relogin rpc)
   rpc GetSessions(GetSessionsRequest) returns (Sessions);
-  
+
   // Returns:
   //  3 if access token cannot be treated as a JWT (you've sent rubbish);
   //  13 if an internal error occurred
   //  16 if access token is invalid or has expired (need to call Relogin rpc)
   rpc GetProfile(AccessToken) returns (UserProfile);
-  
+
   // Returns:
   //  3 if any new data is invalid;
   //  13 if an internal error occurred
   //  16 if access token is invalid or has expired (need to call Relogin rpc)
   rpc EditProfile(EditProfileRequest) returns (google.protobuf.Empty);
-  
+
   // Dangerous RPCs (need to provide password)
 
   // Returns:
@@ -136,7 +140,7 @@ service Auth {
   //    (you'll have to log in again from all devices);
   //    To avoid this problem, get rid of the refresh token completely after
   //    you've logged out
-  rpc LogoutEverywhere(DangerousServiceRequest) returns (google.protobuf.Empty);
+  rpc LogoutEverywhere(DangerousRequest) returns (google.protobuf.Empty);
 
   // Takes:
   //  - either login or email or phone, which identifies user's account
@@ -157,13 +161,13 @@ service Auth {
   //    (you'll have to log in again from all devices);
   //    To avoid this problem, get rid of the refresh token completely after
   //    you've logged out
-  rpc ClearTerminatedSessions(DangerousServiceRequest)
-      returns (google.protobuf.Empty);
+  rpc ClearTerminatedSessions(AccessToken) returns (google.protobuf.Empty);
 
   // Signout
-  //  unlinks account from the current service;
+  //  unlinks account from the service;
   //  It's like delete your account for the service.
-  //  You have a half of year to recover the signup before it will be deleted completely
+  //  You have a half of year to recover the signup before it will be deleted
+  //  completely
   // Takes:
   //  - either login or email or phone, which identifies user's account
   // Returns:
@@ -181,7 +185,7 @@ service Auth {
   //    (you'll have to log in again from all devices);
   //    To avoid this problem, get rid of the refresh token completely after
   //    you've logged out
-  rpc Signout(DangerousServiceRequest) returns (google.protobuf.Empty);
+  rpc Unsign(AccessToken) returns (google.protobuf.Empty);
 
   // SignoutEverywhere
   //  unlinks your account from all services it's linked to
@@ -190,11 +194,12 @@ service Auth {
   //  13 if an internal error occurred
   // Notes:
   //  - this rpc is so dangerous
-  rpc SignoutEverywhere(UserCredentials) returns (google.protobuf.Empty);
+  rpc SignoutEverywhere(DangerousRequest) returns (google.protobuf.Empty);
 
   // Unregister
   //  opposite for Register.
-  //  You have one year to recover the account before it will be deleted completely
+  //  You have one year to recover the account before it will be deleted
+  //  completely
   // Takes:
   //  - either login or email or phone, which identifies user's account
   // Returns:
@@ -212,7 +217,7 @@ service Auth {
   //    (you'll have to log in again from all devices);
   //    To avoid this problem, get rid of the refresh token completely after
   //    you've logged out
-  rpc Unregister(UserCredentials) returns (google.protobuf.Empty);
+  rpc Unregister(DangerousRequest) returns (google.protobuf.Empty);
 }
 
 message UserCredentials {
@@ -222,19 +227,25 @@ message UserCredentials {
   string password = 4;
 };
 
-message SignupRequest {
-  oneof credential {
-    string login = 1;
-    string email = 2;
-    string phone = 3;
-  }
-  string password = 4;
-  int64 service_id = 5;
+message InRequest {
+  UserCredentials credentials = 1;
+  SessionInfo session_info = 3;
 };
 
-message LoginRequest {
-  SignupRequest signup = 1;
-  SessionInfo session_info = 2;
+message IdTokens {
+  string id_token = 1;
+  reserved 2;
+  // string refresh_id_token = 2;
+  UserProfile profile = 3;
+};
+
+message AccessToken { string token = 1; }
+
+message RefreshToken { string token = 1; }
+
+message AppRequest {
+  string id_token = 1;
+  int64 service_id = 2;
 };
 
 message SessionInfo {
@@ -248,13 +259,10 @@ message Session {
   optional google.protobuf.Timestamp terminated_at = 2;
 };
 
-message AccessToken { string token = 1; }
-
-message RefreshToken { string token = 1; }
-
-message Tokens {
+message AppTokens {
   string access = 1;
   string refresh = 2;
+  UserProfile profile = 3;
 };
 
 enum SessionType {
@@ -270,11 +278,6 @@ message GetSessionsRequest {
 
 message Sessions { repeated Session sessions = 1; };
 
-message DangerousServiceRequest {
-  string password = 1;
-  string refresh_token = 2;
-};
-
 message UserProfile {
   int64 id = 1;
   string login = 2;
@@ -288,3 +291,8 @@ message EditProfileRequest {
   optional string phone = 4;
   string access_token = 5;
 };
+
+message DangerousRequest {
+  string id_token = 1;
+  string password = 2;
+}
