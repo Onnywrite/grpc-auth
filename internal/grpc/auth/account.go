@@ -61,16 +61,16 @@ func (a authServer) Signup(c context.Context, r *gen.SignupRequest) (*emptypb.Em
 
 	err := a.service.Signup(c, id, r.ServiceId)
 
-	if errors.Is(err, auth.ErrInvalidCredentials) {
-		return nil, status.Error(codes.NotFound, "user or service not found")
-	}
-	if errors.Is(err, auth.ErrAlreadySignedUp) {
+	switch {
+	case errors.Is(err, auth.ErrInvalidCredentials):
+		return nil, status.Error(codes.NotFound, "invalid login or password")
+	case errors.Is(err, auth.ErrServiceNotExists):
+		return nil, status.Error(codes.NotFound, "service not found")
+	case errors.Is(err, auth.ErrAlreadySignedUp):
 		return nil, status.Error(codes.AlreadyExists, "user has already signed up")
-	}
-	if errors.Is(err, auth.ErrSignupDeleted) {
+	case errors.Is(err, auth.ErrSignedOut):
 		return nil, status.Error(codes.FailedPrecondition, "account in this service has been deleted and can be recovered")
-	}
-	if err != nil {
+	case err != nil:
 		return nil, status.Error(codes.Internal, "SSO service internal error")
 	}
 	return nil, nil
@@ -107,18 +107,17 @@ func (a authServer) Login(c context.Context, r *gen.LoginRequest) (*gen.Tokens, 
 		return nil, status.Error(codes.InvalidArgument, ve.JSON())
 	}
 
-	if errors.Is(err, auth.ErrInvalidCredentials) {
-		return nil, status.Error(codes.NotFound, "user not found")
-	}
-	if errors.Is(err, auth.ErrSignupNotExists) {
+	switch {
+	case errors.Is(err, auth.ErrInvalidCredentials):
+		return nil, status.Error(codes.NotFound, "invalid login or password")
+	case errors.Is(err, auth.ErrSignupNotExists):
 		return nil, status.Error(codes.NotFound, "user has never signed up to the service")
-	}
-	if errors.Is(err, auth.ErrAlreadyLoggedIn) {
+	case errors.Is(err, auth.ErrAlreadyLoggedIn):
 		return nil, status.Error(codes.AlreadyExists, "already logged in")
-	}
-	if err != nil {
+	case err != nil:
 		return nil, status.Error(codes.Internal, "SSO service internal error")
 	}
+
 	return &gen.Tokens{
 		Refresh: tokens.Refresh,
 		Access:  tokens.Access,
