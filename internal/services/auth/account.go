@@ -20,7 +20,6 @@ var (
 
 	ErrUserAlreadyRegistered = errors.New("user already exists")
 	ErrUserDeleted           = errors.New("user has unregistred")
-	ErrUserNotExists         = errors.New("user does not exist")
 
 	ErrAlreadySignedUp = errors.New("you've already signed up and can log in")
 	ErrSignedOut       = errors.New("you've signed out")
@@ -106,7 +105,7 @@ func (a *AuthService) Signup(ctx context.Context, identifier models.UserIdentifi
 	const op = "auth.AuthService.Signup"
 	log := a.log.With(slog.String("op", op), slog.Any("identifier", identifier), slog.Int64("service_id", serviceId))
 
-	user, err := a.db.UserBy(ctx, identifier)
+	user, err := a.db.User(ctx, identifier)
 	if errors.Is(err, storage.ErrEmptyResult) {
 		log.Error("invalid credentials", slog.String("error", err.Error()))
 		return ErrInvalidCredentials
@@ -117,6 +116,10 @@ func (a *AuthService) Signup(ctx context.Context, identifier models.UserIdentifi
 	}
 	log = log.With(slog.Int64("user_id", user.Id))
 	log.Info("user found")
+	
+	if user.IsDeleted() {
+		log.Error("user deleted")
+	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(identifier.Password))
 	if err != nil {
@@ -169,7 +172,7 @@ func (a *AuthService) Login(ctx context.Context, identifier models.UserIdentifie
 		return nil, errs
 	}
 
-	user, err := a.db.UserBy(ctx, identifier)
+	user, err := a.db.User(ctx, identifier)
 	if errors.Is(err, storage.ErrEmptyResult) {
 		log.Error("invalid credentials", slog.String("error", err.Error()))
 		return nil, ErrInvalidCredentials
@@ -273,65 +276,37 @@ func (a *AuthService) Logout(ctx context.Context, refresh string) error {
 	return nil
 }
 
-func (a *AuthService) checkIfSessionTerminated(ctx context.Context, s *models.Session) error {
-	const op = "auth.AuthService.checkIfSessionTerminated"
-	log := a.log.With("op", op)
+// Throws;
+//	ErrInvalidCredentials if 'login' or password is invalid
+//	ErrUserDeleted if user has deleted their account
+//	ErrInternal in any unexpected situation
+func (a *AuthService) getUser(ctx context.Context, identifier models.UserIdentifier) (*models.SavedUser, error) {
+	const op = "auth.AuthService.getUser"
+	log := a.log.With(slog.String("op", op), slog.String("login_type", identifier.Key), slog.String("login", identifier.Value))
 
-	session, err := a.db.Session(ctx, s)
+	user, err := a.db.User(ctx, identifier)
 	if errors.Is(err, storage.ErrEmptyResult) {
-		log.Error("session has been deleted", slog.String("error", err.Error()))
-		return ErrSessionNotExists
+		log.Error("invalid identifier", slog.String("error", err.Error()))
+		return nil, ErrInvalidCredentials
 	}
 	if err != nil {
 		log.Error("internal error", slog.String("error", err.Error()))
-		return ErrInternal
+		return nil, ErrInternal
 	}
-	if session.IsTerminated() {
-		log.Error("session already terminated")
-		return ErrSessionAlreadyTerminated
-	}
-
-	return nil
-}
-
-func (a *AuthService) checkIfSessionTerminatedById(ctx context.Context, uuid string) error {
-	const op = "auth.AuthService.checkIfSessionTerminated"
-	log := a.log.With("op", op)
-
-	session, err := a.db.SessionById(ctx, uuid)
-	if errors.Is(err, storage.ErrEmptyResult) {
-		log.Error("session has been deleted", slog.String("error", err.Error()))
-		return ErrSessionNotExists
-	}
+	log = log.With(slog.Int64("user_id", user.Id))
+	log.Info("user found")
+	
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(identifier.Password))
 	if err != nil {
-		log.Error("internal error", slog.String("error", err.Error()))
-		return ErrInternal
+		log.Error("invalid password", slog.String("error", err.Error()))
+		return nil, ErrInvalidCredentials
 	}
-	if session.IsTerminated() {
-		log.Error("session already terminated")
-		return ErrSessionAlreadyTerminated
-	}
+	log.Info("password and hash match")
 
-	return nil
-}
-
-func (a *AuthService) checkIfUserDeleted(ctx context.Context, identifier models.UserIdentifier) error {
-	const op = "auth.AuthService.checkIfUserDeleted"
-	log := a.log.With(slog.String("op", op), slog.Any("identifier", identifier))
-
-	saved, err := a.db.UserBy(ctx, identifier)
-	if errors.Is(err, storage.ErrEmptyResult) {
-		log.Error("user does not exist", slog.String("error", err.Error()))
-		return ErrUserNotExists
-	}
-	if err != nil {
-		log.Error("internal error", slog.String("error", err.Error()))
-		return ErrInternal
+	if user.IsDeleted() {
+		log.Error("user deleted", slog.Time("deleted_at", *user.DeletedAt))
+		return nil, ErrUserDeleted
 	}
 
-	if saved.IsDeleted() {
-		return ErrUserDeleted
-	}
-
-	return ErrUserAlreadyRegistered
+	return user, nil
 }

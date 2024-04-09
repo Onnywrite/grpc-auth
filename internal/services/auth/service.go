@@ -10,7 +10,7 @@ import (
 
 type Storage interface {
 	SaveUser(ctx context.Context, user *models.User) (*models.SavedUser, error)
-	UserBy(ctx context.Context, user models.UserIdentifier) (*models.SavedUser, error)
+	User(ctx context.Context, user models.UserIdentifier) (*models.SavedUser, error)
 
 	SaveSignup(ctx context.Context, signup models.Signup) (*models.SavedSignup, error)
 	Signup(ctx context.Context, userId, serviceId int64) (*models.SavedSignup, error)

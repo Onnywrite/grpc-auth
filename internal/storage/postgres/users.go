@@ -48,7 +48,7 @@ func (pg *Pg) SaveUser(ctx context.Context, user *models.User) (*models.SavedUse
 	return u, nil
 }
 
-func (pg *Pg) UserBy(ctx context.Context, identifier models.UserIdentifier) (*models.SavedUser, error) {
+func (pg *Pg) User(ctx context.Context, identifier models.UserIdentifier) (*models.SavedUser, error) {
 	const op = "postgres.Pg.userBy"
 
 	s := fmt.Sprintf(`
