@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/Onnywrite/grpc-auth/gen"
 	"github.com/Onnywrite/grpc-auth/internal/lib/tokens"
 	"github.com/Onnywrite/grpc-auth/internal/lib/ve"
 	"github.com/Onnywrite/grpc-auth/internal/models"
@@ -43,55 +44,50 @@ var (
 //	ErrUserAlreadyRegistered
 //	ErrUserDeleted
 //	ErrInternal
-func (a *AuthService) Register(ctx context.Context, optLogin, optEmail, optPhone *string, password string) error {
+func (a *AuthService) Register(ctx context.Context, user *models.User, info models.SessionInfo) (*gen.IdTokens, error) {
 	const op = "auth.AuthService.Register"
 	log := a.log.With(slog.String("op", op))
 
-	log.Debug("switching login type")
-	var identifier models.UserIdentifier
-	switch {
-	case optLogin != nil:
-		identifier = models.UserIdentifier{Key: "login", Value: *optLogin}
-	case optEmail != nil:
-		identifier = models.UserIdentifier{Key: "email", Value: *optEmail}
-	case optPhone != nil:
-		identifier = models.UserIdentifier{Key: "phone", Value: *optPhone}
-	}
-	log = log.With(slog.String("login_type", identifier.Key), slog.String("login", identifier.Value))
-	log.Info("switched login type")
-
-	user := &models.User{
-		Login:    identifier.Value,
-		Email:    optEmail,
-		Phone:    optPhone,
-		Password: password,
-	}
+	id := user.Idendifier()
+	user.Login = &id.Value
+	log = log.With(slog.String("login_type", id.Key), slog.String("login", id.Value))
 
 	if err := validator.New().Struct(user); err != nil {
 		errs := ve.From(err.(validator.ValidationErrors))
 		log.Error("validation error", slog.String("validation_errors", errs.Error()))
-		return errs
+		return nil, errs
 	}
 	log.Info("passed validation")
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashed, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Error("cannot hash password", slog.String("error", err.Error()))
-		return ErrInternal
+		return nil, ErrInternal
 	}
 	user.Password = string(hashed)
 
-	saved, err := a.db.SaveUser(ctx, user)
-	if errors.Is(err, storage.ErrUniqueConstraint) {
-		return a.checkIfUserDeleted(ctx, identifier)
-	}
+	saved, err := a.saveUser(ctx, user)
 	if err != nil {
-		log.Error("saving error", slog.String("error", err.Error()))
-		return ErrInternal
+		log.Error("saving user error", slog.String("error", err.Error()))
+		return nil, err
 	}
 	log.Info("user registred", slog.Int64("id", saved.Id))
 
-	return nil
+	// TODO: generate tokens:
+
+	// Create signup (service_id = 0)
+	// Log in this signup
+	// send token, recieved by Login
+
+	return &gen.IdTokens{
+		IdToken: "TODO",
+		Profile: &gen.UserProfile{
+			Id:    saved.Id,
+			Login: saved.Login,
+			Email: saved.Email,
+			Phone: saved.Phone,
+		},
+	}, nil
 }
 
 // Throws:
@@ -105,6 +101,7 @@ func (a *AuthService) Signup(ctx context.Context, identifier models.UserIdentifi
 	const op = "auth.AuthService.Signup"
 	log := a.log.With(slog.String("op", op), slog.Any("identifier", identifier), slog.Int64("service_id", serviceId))
 
+	// TODO: getUser wrapper
 	user, err := a.db.User(ctx, identifier)
 	if errors.Is(err, storage.ErrEmptyResult) {
 		log.Error("invalid credentials", slog.String("error", err.Error()))
@@ -116,7 +113,7 @@ func (a *AuthService) Signup(ctx context.Context, identifier models.UserIdentifi
 	}
 	log = log.With(slog.Int64("user_id", user.Id))
 	log.Info("user found")
-	
+
 	if user.IsDeleted() {
 		log.Error("user deleted")
 	}
@@ -162,6 +159,8 @@ func (a *AuthService) Signup(ctx context.Context, identifier models.UserIdentifi
 //	ErrSignupNotExists
 //	ErrAlreadyLoggedIn
 //	ErrInternal
+//
+// TODO: need rollback (delete session, if an error occured while creating tokens)
 func (a *AuthService) Login(ctx context.Context, identifier models.UserIdentifier, sessionInfo models.SessionInfo, serviceId int64) (*models.Tokens, error) {
 	const op = "auth.AuthService.Login"
 	log := a.log.With(slog.String("op", op), slog.Any("identifier", identifier), slog.Any("session", sessionInfo))
@@ -277,6 +276,7 @@ func (a *AuthService) Logout(ctx context.Context, refresh string) error {
 }
 
 // Throws;
+//
 //	ErrInvalidCredentials if 'login' or password is invalid
 //	ErrUserDeleted if user has deleted their account
 //	ErrInternal in any unexpected situation
@@ -295,7 +295,7 @@ func (a *AuthService) getUser(ctx context.Context, identifier models.UserIdentif
 	}
 	log = log.With(slog.Int64("user_id", user.Id))
 	log.Info("user found")
-	
+
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(identifier.Password))
 	if err != nil {
 		log.Error("invalid password", slog.String("error", err.Error()))
@@ -309,4 +309,25 @@ func (a *AuthService) getUser(ctx context.Context, identifier models.UserIdentif
 	}
 
 	return user, nil
+}
+
+func (a *AuthService) saveUser(ctx context.Context, user *models.User) (*models.SavedUser, error) {
+	const op = "auth.AuthService.saveUser"
+	log := a.log.With(slog.String("op", op))
+
+	u, err := a.db.SaveUser(ctx, user)
+	if errors.Is(err, storage.ErrUniqueConstraint) {
+		u, err = a.getUser(ctx, *user.Idendifier())
+		if errors.Is(err, ErrUserDeleted) {
+			log.Error("user deleted", slog.Int64("id", u.Id))
+			return nil, err
+		}
+		return nil, ErrUserAlreadyRegistered
+	}
+	if err != nil {
+		log.Error("saving error", slog.String("error", err.Error()))
+		return nil, ErrInternal
+	}
+
+	return u, nil
 }
