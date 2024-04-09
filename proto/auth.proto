@@ -12,7 +12,7 @@ service Auth {
 
   rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
 
-  // Account RPCs
+  // Account RPCs (need id token)
 
   // Register
   //  registrates you in the whole SSO system and let you to sign up
@@ -48,21 +48,23 @@ service Auth {
   //  13 if an internal error occurred
   rpc Login(InRequest) returns (IdTokens);
 
-  // TODO (maybe) rpc Relogin
+  rpc Logout(IdToken) returns (google.protobuf.Empty);
 
-  // Protected RPCs (need tokens)
+  // App RPCs (need access and refresh tokens)
 
   // Signup
-  //  links your registered (existing) account to an existing service by its id
+  //  links your registered (existing) account to an existing service by its
+  //  id
   // Takes:
-  //  - either login or email or phone, which identifies user's existing account
+  //  - either login or email or phone, which identifies user's existing
+  //  account
   //  - user_password of an existing user
   //  - service_id of an existing service
   // Returns:
   //  5 if user or service or both not found;
   //  6 if user has already been signed up to the service;
-  //  9 if user has signed out and can recover their account via RecoverSignup
-  //  rpc; 13 if an internal error occurred
+  //  9 if user has signed out and can recover their account via
+  //  RecoverSignup rpc; 13 if an internal error occurred
   rpc Signup(AppRequest) returns (AppTokens);
 
   // RecoverSignup
@@ -88,7 +90,7 @@ service Auth {
   //  16 if refresh token has expired (need to ask user to log in again)
   rpc Resignin(RefreshToken) returns (AppTokens);
 
-  // Logout
+  // Signout
   //  terminates current session, which is stored in refresh token
   // Returns:
   //  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
@@ -104,43 +106,6 @@ service Auth {
   //  13 if an internal error occurred
   //  16 if access token is invalid or has expired (need to call Relogin rpc)
   rpc Check(AccessToken) returns (google.protobuf.Empty);
-
-  // Returns:
-  //  3 if either type or access token cannot be treated as a JWT (you've sent
-  //  rubbish); 13 if an internal error occurred; 16 if access token has expired
-  //  (need to call Relogin rpc)
-  rpc GetSessions(GetSessionsRequest) returns (Sessions);
-
-  // Returns:
-  //  3 if access token cannot be treated as a JWT (you've sent rubbish);
-  //  13 if an internal error occurred
-  //  16 if access token is invalid or has expired (need to call Relogin rpc)
-  rpc GetProfile(AccessToken) returns (UserProfile);
-
-  // Returns:
-  //  3 if any new data is invalid;
-  //  13 if an internal error occurred
-  //  16 if access token is invalid or has expired (need to call Relogin rpc)
-  rpc EditProfile(EditProfileRequest) returns (google.protobuf.Empty);
-
-  // Dangerous RPCs (need to provide password)
-
-  // Returns:
-  //  3 if refresh token has invalid signature;
-  //  5 if user's credentials are invalid;
-  //  7 if user in credentials and user opened the session mismatch
-  //    (client probably has entered wrong password or
-  //    forgot which account is currently in use);
-  //  13 if an internal error occurred;
-  //  16 if refresh token has either expired or session has already been
-  //  terminated (check note 2)
-  // Notes:
-  //  - this rpc is dangerous
-  //  - SSO will terminate ALL currently active sessions if 16 is returned
-  //    (you'll have to log in again from all devices);
-  //    To avoid this problem, get rid of the refresh token completely after
-  //    you've logged out
-  rpc LogoutEverywhere(DangerousRequest) returns (google.protobuf.Empty);
 
   // Takes:
   //  - either login or email or phone, which identifies user's account
@@ -186,6 +151,45 @@ service Auth {
   //    To avoid this problem, get rid of the refresh token completely after
   //    you've logged out
   rpc Unsign(AccessToken) returns (google.protobuf.Empty);
+
+  // Protected RPCS
+
+  // Returns:
+  //  3 if either type or access token cannot be treated as a JWT (you've sent
+  //  rubbish); 13 if an internal error occurred; 16 if access token has expired
+  //  (need to call Relogin rpc)
+  rpc GetSessions(GetSessionsRequest) returns (Sessions);
+
+  // Returns:
+  //  3 if access token cannot be treated as a JWT (you've sent rubbish);
+  //  13 if an internal error occurred
+  //  16 if access token is invalid or has expired (need to call Relogin rpc)
+  rpc GetProfile(AccessToken) returns (UserProfile);
+
+  // Returns:
+  //  3 if any new data is invalid;
+  //  13 if an internal error occurred
+  //  16 if access token is invalid or has expired (need to call Relogin rpc)
+  rpc EditProfile(EditProfileRequest) returns (google.protobuf.Empty);
+
+  // Dangerous RPCs (need to provide password)
+
+  // Returns:
+  //  3 if refresh token has invalid signature;
+  //  5 if user's credentials are invalid;
+  //  7 if user in credentials and user opened the session mismatch
+  //    (client probably has entered wrong password or
+  //    forgot which account is currently in use);
+  //  13 if an internal error occurred;
+  //  16 if refresh token has either expired or session has already been
+  //  terminated (check note 2)
+  // Notes:
+  //  - this rpc is dangerous
+  //  - SSO will terminate ALL currently active sessions if 16 is returned
+  //    (you'll have to log in again from all devices);
+  //    To avoid this problem, get rid of the refresh token completely after
+  //    you've logged out
+  rpc LogoutEverywhere(DangerousRequest) returns (google.protobuf.Empty);
 
   // SignoutEverywhere
   //  unlinks your account from all services it's linked to
@@ -238,6 +242,8 @@ message IdTokens {
   // string refresh_id_token = 2;
   UserProfile profile = 3;
 };
+
+message IdToken { string token = 1; }
 
 message AccessToken { string token = 1; }
 

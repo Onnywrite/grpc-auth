@@ -55,17 +55,20 @@ type AuthClient interface {
 	//  need to log in);
 	//  13 if an internal error occurred
 	Login(ctx context.Context, in *InRequest, opts ...grpc.CallOption) (*IdTokens, error)
+	Logout(ctx context.Context, in *IdToken, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Signup
-	//  links your registered (existing) account to an existing service by its id
+	//  links your registered (existing) account to an existing service by its
+	//  id
 	// Takes:
-	//  - either login or email or phone, which identifies user's existing account
+	//  - either login or email or phone, which identifies user's existing
+	//  account
 	//  - user_password of an existing user
 	//  - service_id of an existing service
 	// Returns:
 	//  5 if user or service or both not found;
 	//  6 if user has already been signed up to the service;
-	//  9 if user has signed out and can recover their account via RecoverSignup
-	//  rpc; 13 if an internal error occurred
+	//  9 if user has signed out and can recover their account via
+	//  RecoverSignup rpc; 13 if an internal error occurred
 	Signup(ctx context.Context, in *AppRequest, opts ...grpc.CallOption) (*AppTokens, error)
 	// RecoverSignup
 	//  recover your registered (existing) signup if it's been signed out
@@ -87,7 +90,7 @@ type AuthClient interface {
 	//  13 if an internal error occurred;
 	//  16 if refresh token has expired (need to ask user to log in again)
 	Resignin(ctx context.Context, in *RefreshToken, opts ...grpc.CallOption) (*AppTokens, error)
-	// Logout
+	// Signout
 	//  terminates current session, which is stored in refresh token
 	// Returns:
 	//  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
@@ -102,37 +105,6 @@ type AuthClient interface {
 	//  13 if an internal error occurred
 	//  16 if access token is invalid or has expired (need to call Relogin rpc)
 	Check(ctx context.Context, in *AccessToken, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Returns:
-	//  3 if either type or access token cannot be treated as a JWT (you've sent
-	//  rubbish); 13 if an internal error occurred; 16 if access token has expired
-	//  (need to call Relogin rpc)
-	GetSessions(ctx context.Context, in *GetSessionsRequest, opts ...grpc.CallOption) (*Sessions, error)
-	// Returns:
-	//  3 if access token cannot be treated as a JWT (you've sent rubbish);
-	//  13 if an internal error occurred
-	//  16 if access token is invalid or has expired (need to call Relogin rpc)
-	GetProfile(ctx context.Context, in *AccessToken, opts ...grpc.CallOption) (*UserProfile, error)
-	// Returns:
-	//  3 if any new data is invalid;
-	//  13 if an internal error occurred
-	//  16 if access token is invalid or has expired (need to call Relogin rpc)
-	EditProfile(ctx context.Context, in *EditProfileRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Returns:
-	//  3 if refresh token has invalid signature;
-	//  5 if user's credentials are invalid;
-	//  7 if user in credentials and user opened the session mismatch
-	//    (client probably has entered wrong password or
-	//    forgot which account is currently in use);
-	//  13 if an internal error occurred;
-	//  16 if refresh token has either expired or session has already been
-	//  terminated (check note 2)
-	// Notes:
-	//  - this rpc is dangerous
-	//  - SSO will terminate ALL currently active sessions if 16 is returned
-	//    (you'll have to log in again from all devices);
-	//    To avoid this problem, get rid of the refresh token completely after
-	//    you've logged out
-	LogoutEverywhere(ctx context.Context, in *DangerousRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Takes:
 	//  - either login or email or phone, which identifies user's account
 	//  - password of the account
@@ -176,6 +148,37 @@ type AuthClient interface {
 	//    To avoid this problem, get rid of the refresh token completely after
 	//    you've logged out
 	Unsign(ctx context.Context, in *AccessToken, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Returns:
+	//  3 if either type or access token cannot be treated as a JWT (you've sent
+	//  rubbish); 13 if an internal error occurred; 16 if access token has expired
+	//  (need to call Relogin rpc)
+	GetSessions(ctx context.Context, in *GetSessionsRequest, opts ...grpc.CallOption) (*Sessions, error)
+	// Returns:
+	//  3 if access token cannot be treated as a JWT (you've sent rubbish);
+	//  13 if an internal error occurred
+	//  16 if access token is invalid or has expired (need to call Relogin rpc)
+	GetProfile(ctx context.Context, in *AccessToken, opts ...grpc.CallOption) (*UserProfile, error)
+	// Returns:
+	//  3 if any new data is invalid;
+	//  13 if an internal error occurred
+	//  16 if access token is invalid or has expired (need to call Relogin rpc)
+	EditProfile(ctx context.Context, in *EditProfileRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Returns:
+	//  3 if refresh token has invalid signature;
+	//  5 if user's credentials are invalid;
+	//  7 if user in credentials and user opened the session mismatch
+	//    (client probably has entered wrong password or
+	//    forgot which account is currently in use);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has either expired or session has already been
+	//  terminated (check note 2)
+	// Notes:
+	//  - this rpc is dangerous
+	//  - SSO will terminate ALL currently active sessions if 16 is returned
+	//    (you'll have to log in again from all devices);
+	//    To avoid this problem, get rid of the refresh token completely after
+	//    you've logged out
+	LogoutEverywhere(ctx context.Context, in *DangerousRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// SignoutEverywhere
 	//  unlinks your account from all services it's linked to
 	// Returns:
@@ -252,6 +255,15 @@ func (c *authClient) Login(ctx context.Context, in *InRequest, opts ...grpc.Call
 	return out, nil
 }
 
+func (c *authClient) Logout(ctx context.Context, in *IdToken, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Logout", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authClient) Signup(ctx context.Context, in *AppRequest, opts ...grpc.CallOption) (*AppTokens, error) {
 	out := new(AppTokens)
 	err := c.cc.Invoke(ctx, "/auth.Auth/Signup", in, out, opts...)
@@ -306,6 +318,24 @@ func (c *authClient) Check(ctx context.Context, in *AccessToken, opts ...grpc.Ca
 	return out, nil
 }
 
+func (c *authClient) ClearTerminatedSessions(ctx context.Context, in *AccessToken, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/ClearTerminatedSessions", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) Unsign(ctx context.Context, in *AccessToken, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Unsign", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authClient) GetSessions(ctx context.Context, in *GetSessionsRequest, opts ...grpc.CallOption) (*Sessions, error) {
 	out := new(Sessions)
 	err := c.cc.Invoke(ctx, "/auth.Auth/GetSessions", in, out, opts...)
@@ -336,24 +366,6 @@ func (c *authClient) EditProfile(ctx context.Context, in *EditProfileRequest, op
 func (c *authClient) LogoutEverywhere(ctx context.Context, in *DangerousRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/auth.Auth/LogoutEverywhere", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *authClient) ClearTerminatedSessions(ctx context.Context, in *AccessToken, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/auth.Auth/ClearTerminatedSessions", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *authClient) Unsign(ctx context.Context, in *AccessToken, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/auth.Auth/Unsign", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -414,17 +426,20 @@ type AuthServer interface {
 	//  need to log in);
 	//  13 if an internal error occurred
 	Login(context.Context, *InRequest) (*IdTokens, error)
+	Logout(context.Context, *IdToken) (*emptypb.Empty, error)
 	// Signup
-	//  links your registered (existing) account to an existing service by its id
+	//  links your registered (existing) account to an existing service by its
+	//  id
 	// Takes:
-	//  - either login or email or phone, which identifies user's existing account
+	//  - either login or email or phone, which identifies user's existing
+	//  account
 	//  - user_password of an existing user
 	//  - service_id of an existing service
 	// Returns:
 	//  5 if user or service or both not found;
 	//  6 if user has already been signed up to the service;
-	//  9 if user has signed out and can recover their account via RecoverSignup
-	//  rpc; 13 if an internal error occurred
+	//  9 if user has signed out and can recover their account via
+	//  RecoverSignup rpc; 13 if an internal error occurred
 	Signup(context.Context, *AppRequest) (*AppTokens, error)
 	// RecoverSignup
 	//  recover your registered (existing) signup if it's been signed out
@@ -446,7 +461,7 @@ type AuthServer interface {
 	//  13 if an internal error occurred;
 	//  16 if refresh token has expired (need to ask user to log in again)
 	Resignin(context.Context, *RefreshToken) (*AppTokens, error)
-	// Logout
+	// Signout
 	//  terminates current session, which is stored in refresh token
 	// Returns:
 	//  3 if refresh token cannot be treated as a JWT (you've sent rubbish);
@@ -461,37 +476,6 @@ type AuthServer interface {
 	//  13 if an internal error occurred
 	//  16 if access token is invalid or has expired (need to call Relogin rpc)
 	Check(context.Context, *AccessToken) (*emptypb.Empty, error)
-	// Returns:
-	//  3 if either type or access token cannot be treated as a JWT (you've sent
-	//  rubbish); 13 if an internal error occurred; 16 if access token has expired
-	//  (need to call Relogin rpc)
-	GetSessions(context.Context, *GetSessionsRequest) (*Sessions, error)
-	// Returns:
-	//  3 if access token cannot be treated as a JWT (you've sent rubbish);
-	//  13 if an internal error occurred
-	//  16 if access token is invalid or has expired (need to call Relogin rpc)
-	GetProfile(context.Context, *AccessToken) (*UserProfile, error)
-	// Returns:
-	//  3 if any new data is invalid;
-	//  13 if an internal error occurred
-	//  16 if access token is invalid or has expired (need to call Relogin rpc)
-	EditProfile(context.Context, *EditProfileRequest) (*emptypb.Empty, error)
-	// Returns:
-	//  3 if refresh token has invalid signature;
-	//  5 if user's credentials are invalid;
-	//  7 if user in credentials and user opened the session mismatch
-	//    (client probably has entered wrong password or
-	//    forgot which account is currently in use);
-	//  13 if an internal error occurred;
-	//  16 if refresh token has either expired or session has already been
-	//  terminated (check note 2)
-	// Notes:
-	//  - this rpc is dangerous
-	//  - SSO will terminate ALL currently active sessions if 16 is returned
-	//    (you'll have to log in again from all devices);
-	//    To avoid this problem, get rid of the refresh token completely after
-	//    you've logged out
-	LogoutEverywhere(context.Context, *DangerousRequest) (*emptypb.Empty, error)
 	// Takes:
 	//  - either login or email or phone, which identifies user's account
 	//  - password of the account
@@ -535,6 +519,37 @@ type AuthServer interface {
 	//    To avoid this problem, get rid of the refresh token completely after
 	//    you've logged out
 	Unsign(context.Context, *AccessToken) (*emptypb.Empty, error)
+	// Returns:
+	//  3 if either type or access token cannot be treated as a JWT (you've sent
+	//  rubbish); 13 if an internal error occurred; 16 if access token has expired
+	//  (need to call Relogin rpc)
+	GetSessions(context.Context, *GetSessionsRequest) (*Sessions, error)
+	// Returns:
+	//  3 if access token cannot be treated as a JWT (you've sent rubbish);
+	//  13 if an internal error occurred
+	//  16 if access token is invalid or has expired (need to call Relogin rpc)
+	GetProfile(context.Context, *AccessToken) (*UserProfile, error)
+	// Returns:
+	//  3 if any new data is invalid;
+	//  13 if an internal error occurred
+	//  16 if access token is invalid or has expired (need to call Relogin rpc)
+	EditProfile(context.Context, *EditProfileRequest) (*emptypb.Empty, error)
+	// Returns:
+	//  3 if refresh token has invalid signature;
+	//  5 if user's credentials are invalid;
+	//  7 if user in credentials and user opened the session mismatch
+	//    (client probably has entered wrong password or
+	//    forgot which account is currently in use);
+	//  13 if an internal error occurred;
+	//  16 if refresh token has either expired or session has already been
+	//  terminated (check note 2)
+	// Notes:
+	//  - this rpc is dangerous
+	//  - SSO will terminate ALL currently active sessions if 16 is returned
+	//    (you'll have to log in again from all devices);
+	//    To avoid this problem, get rid of the refresh token completely after
+	//    you've logged out
+	LogoutEverywhere(context.Context, *DangerousRequest) (*emptypb.Empty, error)
 	// SignoutEverywhere
 	//  unlinks your account from all services it's linked to
 	// Returns:
@@ -584,6 +599,9 @@ func (UnimplementedAuthServer) Recover(context.Context, *InRequest) (*IdTokens, 
 func (UnimplementedAuthServer) Login(context.Context, *InRequest) (*IdTokens, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Login not implemented")
 }
+func (UnimplementedAuthServer) Logout(context.Context, *IdToken) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
+}
 func (UnimplementedAuthServer) Signup(context.Context, *AppRequest) (*AppTokens, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Signup not implemented")
 }
@@ -602,6 +620,12 @@ func (UnimplementedAuthServer) Signout(context.Context, *RefreshToken) (*emptypb
 func (UnimplementedAuthServer) Check(context.Context, *AccessToken) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Check not implemented")
 }
+func (UnimplementedAuthServer) ClearTerminatedSessions(context.Context, *AccessToken) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClearTerminatedSessions not implemented")
+}
+func (UnimplementedAuthServer) Unsign(context.Context, *AccessToken) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Unsign not implemented")
+}
 func (UnimplementedAuthServer) GetSessions(context.Context, *GetSessionsRequest) (*Sessions, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSessions not implemented")
 }
@@ -613,12 +637,6 @@ func (UnimplementedAuthServer) EditProfile(context.Context, *EditProfileRequest)
 }
 func (UnimplementedAuthServer) LogoutEverywhere(context.Context, *DangerousRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LogoutEverywhere not implemented")
-}
-func (UnimplementedAuthServer) ClearTerminatedSessions(context.Context, *AccessToken) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ClearTerminatedSessions not implemented")
-}
-func (UnimplementedAuthServer) Unsign(context.Context, *AccessToken) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Unsign not implemented")
 }
 func (UnimplementedAuthServer) SignoutEverywhere(context.Context, *DangerousRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SignoutEverywhere not implemented")
@@ -707,6 +725,24 @@ func _Auth_Login_Handler(srv interface{}, ctx context.Context, dec func(interfac
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServer).Login(ctx, req.(*InRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_Logout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IdToken)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).Logout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/Logout",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).Logout(ctx, req.(*IdToken))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -819,6 +855,42 @@ func _Auth_Check_Handler(srv interface{}, ctx context.Context, dec func(interfac
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Auth_ClearTerminatedSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccessToken)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).ClearTerminatedSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/ClearTerminatedSessions",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).ClearTerminatedSessions(ctx, req.(*AccessToken))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_Unsign_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccessToken)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).Unsign(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/Unsign",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).Unsign(ctx, req.(*AccessToken))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Auth_GetSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetSessionsRequest)
 	if err := dec(in); err != nil {
@@ -891,42 +963,6 @@ func _Auth_LogoutEverywhere_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Auth_ClearTerminatedSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AccessToken)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServer).ClearTerminatedSessions(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/auth.Auth/ClearTerminatedSessions",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).ClearTerminatedSessions(ctx, req.(*AccessToken))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Auth_Unsign_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AccessToken)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServer).Unsign(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/auth.Auth/Unsign",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).Unsign(ctx, req.(*AccessToken))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _Auth_SignoutEverywhere_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DangerousRequest)
 	if err := dec(in); err != nil {
@@ -987,6 +1023,10 @@ var Auth_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Auth_Login_Handler,
 		},
 		{
+			MethodName: "Logout",
+			Handler:    _Auth_Logout_Handler,
+		},
+		{
 			MethodName: "Signup",
 			Handler:    _Auth_Signup_Handler,
 		},
@@ -1011,6 +1051,14 @@ var Auth_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Auth_Check_Handler,
 		},
 		{
+			MethodName: "ClearTerminatedSessions",
+			Handler:    _Auth_ClearTerminatedSessions_Handler,
+		},
+		{
+			MethodName: "Unsign",
+			Handler:    _Auth_Unsign_Handler,
+		},
+		{
 			MethodName: "GetSessions",
 			Handler:    _Auth_GetSessions_Handler,
 		},
@@ -1025,14 +1073,6 @@ var Auth_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LogoutEverywhere",
 			Handler:    _Auth_LogoutEverywhere_Handler,
-		},
-		{
-			MethodName: "ClearTerminatedSessions",
-			Handler:    _Auth_ClearTerminatedSessions_Handler,
-		},
-		{
-			MethodName: "Unsign",
-			Handler:    _Auth_Unsign_Handler,
 		},
 		{
 			MethodName: "SignoutEverywhere",
