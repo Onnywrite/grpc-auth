@@ -23,7 +23,7 @@ var (
 	ErrUserNotExists         = errors.New("user does not exist")
 
 	ErrAlreadySignedUp = errors.New("you've already signed up and can log in")
-	ErrSignupDeleted   = errors.New("you've signed out")
+	ErrSignedOut       = errors.New("you've signed out")
 	ErrSignupNotExists = errors.New("signup does not exist")
 
 	ErrAlreadyLoggedIn = errors.New("you've already logged in")
@@ -98,7 +98,8 @@ func (a *AuthService) Register(ctx context.Context, optLogin, optEmail, optPhone
 // Throws:
 //
 //	ErrInvalidCredentials
-//	ErrSignupDeleted
+//	ErrServiceNotExists
+//	ErrSignedOut
 //	ErrAlreadySignedUp
 //	ErrInternal
 func (a *AuthService) Signup(ctx context.Context, identifier models.UserIdentifier, serviceId int64) error {
@@ -135,10 +136,13 @@ func (a *AuthService) Signup(ctx context.Context, identifier models.UserIdentifi
 		su, _ = a.db.Signup(ctx, signup.UserId, signup.ServiceId)
 		if su.IsDeleted() {
 			log.Error("signup deleted")
-			return ErrSignupDeleted
+			return ErrSignedOut
 		}
 		log.Error("signup exists")
 		return ErrAlreadySignedUp
+	case errors.Is(err, storage.ErrFKConstraint):
+		log.Error("service with this id not found")
+		return ErrServiceNotExists
 	case err != nil:
 		log.Error("failed to save signup", slog.String("error", err.Error()))
 		return ErrInternal
@@ -176,6 +180,13 @@ func (a *AuthService) Login(ctx context.Context, identifier models.UserIdentifie
 	}
 	log = log.With(slog.Int64("user_id", user.Id))
 	log.Info("user found")
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(identifier.Password))
+	if err != nil {
+		log.Error("invalid password", slog.String("error", err.Error()))
+		return nil, ErrInvalidCredentials
+	}
+	log.Info("password and hash match")
 
 	su, err := a.db.Signup(ctx, user.Id, serviceId)
 	if err != nil || su.IsDeleted() {
