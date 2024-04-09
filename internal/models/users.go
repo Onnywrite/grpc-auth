@@ -3,10 +3,10 @@ package models
 import "time"
 
 type User struct {
-	Login    string  `db:"login" validate:"ne=me,gt=0,max=30"`
-	Email    *string `db:"email" validate:"email,max=255"`
-	Phone    *string `db:"phone" validate:"e164"`
-	Password string  `db:"password" validate:"lte=72,gte=8" secret:"1"`
+	Login    string  `db:"login" validate:"required,gte=3,max=30"`
+	Email    *string `db:"email" validate:"omitempty,email,max=255"`
+	Phone    *string `db:"phone" validate:"omitempty,e164"`
+	Password string  `db:"password" validate:"required,lte=72,gte=8" secret:"1"`
 }
 
 type SavedUser struct {
