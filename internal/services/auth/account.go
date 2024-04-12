@@ -49,12 +49,13 @@ func (a *AuthService) Register(ctx context.Context, user *models.User, info mode
 	log := a.log.With(slog.String("op", op))
 
 	id := user.Idendifier()
-	user.Login = &id.Value
-	log = log.With(slog.String("login_type", id.Key), slog.String("login", id.Value))
+	value := id.Value.(string)
+	user.Login = &value
+	log = log.With(slog.String("login_type", id.Key), slog.Any("login", id.Value))
 
 	if err := validator.New().Struct(user); err != nil {
 		errs := ve.From(err.(validator.ValidationErrors))
-		log.Error("validation error", slog.String("validation_errors", errs.Error()))
+		log.Error("user validation error", slog.String("validation_errors", errs.Error()))
 		return nil, errs
 	}
 	log.Info("passed validation")
@@ -73,14 +74,19 @@ func (a *AuthService) Register(ctx context.Context, user *models.User, info mode
 	}
 	log.Info("user registred", slog.Int64("id", saved.Id))
 
-	// TODO: generate tokens:
-
-	// Create signup (service_id = 0)
-	// Log in this signup
-	// send token, recieved by Login
+	tkn, err := tokens.Id(models.IdToken{
+		Id:  saved.Id,
+		Iss: "sso.onnywrite.com",
+		Sub: "sso.onnywrite.com",
+		Exp: time.Now().Add(a.idTokenTTL).Unix(),
+	})
+	if err != nil {
+		log.Error("could not generate id token", slog.String("error", err.Error()))
+		return nil, ErrInternal
+	}
 
 	return &gen.IdTokens{
-		IdToken: "TODO",
+		IdToken: tkn,
 		Profile: &gen.UserProfile{
 			Id:    saved.Id,
 			Login: saved.Login,
@@ -92,64 +98,132 @@ func (a *AuthService) Register(ctx context.Context, user *models.User, info mode
 
 // Throws:
 //
+//	ValidationErrorsList
 //	ErrInvalidCredentials
 //	ErrServiceNotExists
 //	ErrSignedOut
 //	ErrAlreadySignedUp
 //	ErrInternal
-func (a *AuthService) Signup(ctx context.Context, identifier models.UserIdentifier, serviceId int64) error {
+func (a *AuthService) Signup(ctx context.Context, idToken string, serviceId int64, info models.SessionInfo) (*gen.AppTokens, error) {
 	const op = "auth.AuthService.Signup"
-	log := a.log.With(slog.String("op", op), slog.Any("identifier", identifier), slog.Int64("service_id", serviceId))
+	log := a.log.With(slog.String("op", op), slog.Int64("service_id", serviceId), slog.Any("session", info))
 
-	// TODO: getUser wrapper
-	user, err := a.db.User(ctx, identifier)
+	token, err := tokens.ParseId(idToken)
+	if errors.Is(err, tokens.ErrTokenExpired) {
+		return nil, ErrTokenExpired
+	}
+	if err != nil {
+		log.Error("could not parse id token", slog.String("error", err.Error()))
+		return nil, ErrInternal
+	}
+
+	saved, err := a.getUser(ctx, models.UserIdentifier{
+		Key:   "user_id",
+		Value: token.Id,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	signup := models.Signup{
+		UserId:    saved.Id,
+		ServiceId: serviceId,
+	}
+
+	if err := validator.New().Struct(signup); err != nil {
+		errs := ve.From(err.(validator.ValidationErrors))
+		log.Error("signup validation error", slog.String("validation_errors", errs.Error()))
+		return nil, errs
+	}
+
+	su, err := a.saveSignup(ctx, signup)
+	if err != nil {
+		return nil, err
+	}
+
+	access, err := tokens.Access(&models.AccessToken{
+		Id:        saved.Id,
+		Login:     saved.Login,
+		ServiceId: serviceId,
+		Roles:     []string{},
+		Exp:       time.Now().Add(a.tokenTTL).Unix(),
+	})
+	if err != nil {
+		log.Error("could not generate access token", slog.String("error", err.Error()))
+		return nil, ErrInternal
+	}
+
+	// TODO: add refresh token
+	// using Signin
+
+	log.Info("signed up", slog.Int64("signup_id", su.Id))
+
+	return &gen.AppTokens{
+		Access:  access,
+		Refresh: "TODO",
+		Profile: &gen.UserProfile{
+			Id:    saved.Id,
+			Login: saved.Login,
+			Email: saved.Email,
+			Phone: saved.Phone,
+		},
+	}, nil
+}
+
+// Throws:
+//
+//	ErrAlreadySignedUp
+//	ErrSignedOut
+//	ErrInternal
+func (a *AuthService) saveSignup(ctx context.Context, signup models.Signup) (*models.SavedSignup, error) {
+	const op = "auth.AuthService.saveSignup"
+	log := a.log.With(slog.String("op", op))
+
+	su, err := a.db.SaveSignup(ctx, signup)
+	if errors.Is(err, storage.ErrUniqueConstraint) {
+		su, err = a.getSignup(ctx, signup.UserId, signup.UserId)
+		if errors.Is(err, ErrSignedOut) {
+			log.Error("user signed out", slog.Int64("id", su.Id))
+			return nil, err
+		}
+		return nil, ErrAlreadySignedUp
+	}
+	if err != nil {
+		log.Error("saving error", slog.String("error", err.Error()))
+		return nil, ErrInternal
+	}
+
+	return su, nil
+}
+
+// Throws;
+//
+//	ErrSignupNotExists
+//	ErrSignedOut
+//	ErrInternal
+func (a *AuthService) getSignup(ctx context.Context, userId, serviceID int64) (*models.SavedSignup, error) {
+	const op = "auth.AuthService.getSignup"
+	log := a.log.With(slog.String("op", op), slog.Int64("user_id", userId), slog.Int64("service_id", serviceID))
+
+	su, err := a.db.Signup(ctx, userId, serviceID)
 	if errors.Is(err, storage.ErrEmptyResult) {
-		log.Error("invalid credentials", slog.String("error", err.Error()))
-		return ErrInvalidCredentials
+		log.Error("no signups were found", slog.String("error", err.Error()))
+		return nil, ErrSignupNotExists
 	}
 	if err != nil {
 		log.Error("internal error", slog.String("error", err.Error()))
-		return ErrInternal
-	}
-	log = log.With(slog.Int64("user_id", user.Id))
-	log.Info("user found")
-
-	if user.IsDeleted() {
-		log.Error("user deleted")
+		return nil, ErrInternal
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(identifier.Password))
-	if err != nil {
-		log.Error("invalid password", slog.String("error", err.Error()))
-		return ErrInvalidCredentials
-	}
-	log.Info("password and hash match")
+	log = log.With(slog.Int64("signup_id", su.Id))
+	log.Info("signup found")
 
-	signup := models.Signup{
-		UserId:    user.Id,
-		ServiceId: serviceId,
+	if su.IsDeleted() {
+		log.Error("signup deleted", slog.Time("deleted_at", *su.DeletedAt))
+		return nil, ErrSignedOut
 	}
-	su, err := a.db.SaveSignup(ctx, signup)
-	switch {
-	case errors.Is(err, storage.ErrUniqueConstraint):
-		log.Info("checking if user's signed out")
-		su, _ = a.db.Signup(ctx, signup.UserId, signup.ServiceId)
-		if su.IsDeleted() {
-			log.Error("signup deleted")
-			return ErrSignedOut
-		}
-		log.Error("signup exists")
-		return ErrAlreadySignedUp
-	case errors.Is(err, storage.ErrFKConstraint):
-		log.Error("service with this id not found")
-		return ErrServiceNotExists
-	case err != nil:
-		log.Error("failed to save signup", slog.String("error", err.Error()))
-		return ErrInternal
-	}
-	log.Info("signed up", slog.Int64("signup_id", su.Id))
 
-	return nil
+	return su, nil
 }
 
 // Throws:
@@ -160,12 +234,12 @@ func (a *AuthService) Signup(ctx context.Context, identifier models.UserIdentifi
 //	ErrAlreadyLoggedIn
 //	ErrInternal
 //
-// TODO: need rollback (delete session, if an error occured while creating tokens)
-func (a *AuthService) Login(ctx context.Context, identifier models.UserIdentifier, sessionInfo models.SessionInfo, serviceId int64) (*models.Tokens, error) {
+// TODO: FOR Signin: need rollback (delete session, if an error occured while creating tokens)
+func (a *AuthService) Login(ctx context.Context, user *models.User, info models.SessionInfo) (*gen.IdTokens, error) {
 	const op = "auth.AuthService.Login"
-	log := a.log.With(slog.String("op", op), slog.Any("identifier", identifier), slog.Any("session", sessionInfo))
+	log := a.log.With(slog.String("op", op), slog.Any("identifier", identifier), slog.Any("session", info))
 
-	if err := validator.New().Struct(sessionInfo); err != nil {
+	if err := validator.New().Struct(info); err != nil {
 		errs := ve.From(err.(validator.ValidationErrors))
 		log.Error("validation error", slog.String("validation_errors", errs.Error()))
 		return nil, errs
@@ -201,7 +275,7 @@ func (a *AuthService) Login(ctx context.Context, identifier models.UserIdentifie
 	session := &models.Session{
 		UserId:    su.UserId,
 		ServiceId: su.ServiceId,
-		Info:      sessionInfo,
+		Info:      info,
 	}
 	saved, err := a.db.SaveSession(ctx, session)
 	if errors.Is(err, storage.ErrUniqueConstraint) {
@@ -282,7 +356,7 @@ func (a *AuthService) Logout(ctx context.Context, refresh string) error {
 //	ErrInternal in any unexpected situation
 func (a *AuthService) getUser(ctx context.Context, identifier models.UserIdentifier) (*models.SavedUser, error) {
 	const op = "auth.AuthService.getUser"
-	log := a.log.With(slog.String("op", op), slog.String("login_type", identifier.Key), slog.String("login", identifier.Value))
+	log := a.log.With(slog.String("op", op), slog.String("login_type", identifier.Key), slog.Any("login", identifier.Value))
 
 	user, err := a.db.User(ctx, identifier)
 	if errors.Is(err, storage.ErrEmptyResult) {
@@ -317,7 +391,7 @@ func (a *AuthService) saveUser(ctx context.Context, user *models.User) (*models.
 
 	u, err := a.db.SaveUser(ctx, user)
 	if errors.Is(err, storage.ErrUniqueConstraint) {
-		u, err = a.getUser(ctx, *user.Idendifier())
+		u, err = a.getUser(ctx, user.Idendifier())
 		if errors.Is(err, ErrUserDeleted) {
 			log.Error("user deleted", slog.Int64("id", u.Id))
 			return nil, err
