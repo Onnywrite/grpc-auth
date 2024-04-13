@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/Onnywrite/grpc-auth/internal/lib/pgxerr"
 	"github.com/Onnywrite/grpc-auth/internal/models"
 	storage "github.com/Onnywrite/grpc-auth/internal/storage/common"
@@ -14,23 +13,15 @@ import (
 func (pg *Pg) SaveService(ctx context.Context, service *models.Service) (*models.SavedService, error) {
 	const op = "postgres.Pg.SaveService"
 
-	s, args, err := sq.Insert("services").
-		Columns("name", "owner_fk").
-		Values(service.Name, service.OwnerId).
-		Suffix(`RETURNING service_id, owner_fk, name`).
-		PlaceholderFormat(sq.Dollar).
-		ToSql()
-
-	if err != nil {
-		return nil, fmt.Errorf("squirrel %s: %w", op, err)
-	}
-
-	stmt, err := pg.db.PreparexContext(ctx, s)
+	stmt, err := pg.db.PreparexContext(ctx, `
+		INSERT INTO services (name, owner_fk)
+		VALUES $1, $2
+		RETURNING service_id, owner_fk, name`)
 	if err != nil {
 		return nil, fmt.Errorf("preparex %s: %w", op, err)
 	}
 
-	row := stmt.QueryRowxContext(ctx, args...)
+	row := stmt.QueryRowxContext(ctx, service.Name, service.OwnerId)
 	err = row.Err()
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
 		return nil, storage.ErrUniqueConstraint
@@ -48,22 +39,17 @@ func (pg *Pg) SaveService(ctx context.Context, service *models.Service) (*models
 	return u, nil
 }
 
-func (pg *Pg) Service(ctx context.Context, id int64) (*models.SavedService, error) {
-	return pg.serviceBy(ctx, "service_id", id)
+func (pg *Pg) ServiceById(ctx context.Context, id int64) (*models.SavedService, error) {
+	return pg.whereService(ctx, "service_id = $1", id)
 }
 
-func (pg *Pg) serviceBy(ctx context.Context, prop string, val any) (*models.SavedService, error) {
+func (pg *Pg) whereService(ctx context.Context, where string, args ...any) (*models.SavedService, error) {
 	const op = "postgres.Pg.serviceBy"
 
-	s, args, err := sq.Select("services").
-		From("services").
-		Where(sq.Eq{prop: val}).
-		PlaceholderFormat(sq.Dollar).
-		ToSql()
-
-	if err != nil {
-		return nil, fmt.Errorf("squirrel %s: %w", op, err)
-	}
+	s := fmt.Sprintf(`
+		SELECT *
+		FROM services
+		WHERE %s`, where)
 
 	stmt, err := pg.db.PreparexContext(ctx, s)
 	if err != nil {

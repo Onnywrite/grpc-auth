@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/Onnywrite/grpc-auth/internal/lib/pgxerr"
 	"github.com/Onnywrite/grpc-auth/internal/models"
 	storage "github.com/Onnywrite/grpc-auth/internal/storage/common"
@@ -16,21 +15,15 @@ import (
 func (pg *Pg) SaveUser(ctx context.Context, user *models.User) (*models.SavedUser, error) {
 	const op = "postgres.Pg.SaveUser"
 
-	s, args, err := sq.Insert("users").Columns("login", "email", "phone", "password").
-		Values(user.Login, user.Email, user.Phone, user.Password).
-		Suffix(`RETURNING user_id, login, email, phone, password`).
-		PlaceholderFormat(sq.Dollar).
-		ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("squirrel %s: %w", op, err)
-	}
-
-	stmt, err := pg.db.PreparexContext(ctx, s)
+	stmt, err := pg.db.PreparexContext(ctx, `
+		INSERT INTO users (login, email, phone, password)
+		VALUES $1, $2, $3, $4
+		RETURNING user_id, login, email, phone, password`)
 	if err != nil {
 		return nil, fmt.Errorf("preparex %s: %w", op, err)
 	}
 
-	row := stmt.QueryRowxContext(ctx, args...)
+	row := stmt.QueryRowxContext(ctx, user.Login, user.Email, user.Phone, user.Password)
 	err = row.Err()
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
 		return nil, storage.ErrUniqueConstraint
