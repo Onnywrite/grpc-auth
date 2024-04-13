@@ -6,7 +6,8 @@ import (
 	"net"
 	"time"
 
-	grpcauth "github.com/Onnywrite/grpc-auth/internal/grpc/auth"
+	"github.com/Onnywrite/grpc-auth/internal/transfer"
+	grpcauth "github.com/Onnywrite/grpc-auth/internal/transfer/grpc/auth"
 	"google.golang.org/grpc"
 )
 
@@ -16,7 +17,7 @@ type GRPCApp struct {
 	port   string
 }
 
-func NewGRPC(logger *slog.Logger, service grpcauth.AuthService, port int, timeout time.Duration) *GRPCApp {
+func NewGRPC(logger *slog.Logger, service transfer.AuthService, port int, timeout time.Duration) *GRPCApp {
 	s := grpc.NewServer(grpc.ConnectionTimeout(timeout))
 
 	// add middlewares if possible
