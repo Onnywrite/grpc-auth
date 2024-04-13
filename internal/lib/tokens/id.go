@@ -9,12 +9,13 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
-func Id(token *models.IdToken) (string, error) {
-	return New(jwt.MapClaims{
-		"id":           token.Id,
-		"session_uuid": token.SessionUUID,
-		"exp":          token.Exp,
-	})
+func Id(token models.IdToken) (string, error) {
+	return NewWithSecret(jwt.MapClaims{
+		"id":  token.Id,
+		"iss": token.Iss,
+		"sub": token.Sub,
+		"exp": token.Exp,
+	}, os.Getenv(IdEnv))
 }
 
 func ParseId(tkn string) (*models.IdToken, error) {
@@ -37,15 +38,20 @@ func ParseId(tkn string) (*models.IdToken, error) {
 		if !ok {
 			return nil, fmt.Errorf("could not convert 'id' to int64")
 		}
-		sessionUUID, ok := claims["session_uuid"].(string)
+		iss, ok := claims["iss"].(string)
 		if !ok {
-			return nil, ErrInvalidData
+			return nil, fmt.Errorf("could not convert 'iss' to string")
+		}
+		sub, ok := claims["sub"].(string)
+		if !ok {
+			return nil, fmt.Errorf("could not convert 'sub' to string")
 		}
 
 		token := &models.IdToken{
-			Id:          int64(id),
-			SessionUUID: sessionUUID,
-			Exp:         int64(exp),
+			Id:  int64(id),
+			Iss: iss,
+			Sub: sub,
+			Exp: int64(exp),
 		}
 
 		if float64(time.Now().Unix()) > exp {

@@ -9,12 +9,13 @@ import (
 )
 
 type Config struct {
-	Environment    string        `yaml:"environment" env:"ENV" required:"true"`
-	Conn           string        `yaml:"conn" env:"CONN" required:"true"`
-	GRPC           GRPCConfig    `yaml:"grpc"`
-	MigrationsPath string        `yaml:"migrations_path" env:"MIGRATIONS_PATH"`
-	TokenTTL       time.Duration `yaml:"token_ttl" env:"TOKEN_TTL" env-default:"5m"`
-	RefreshTokenTTL       time.Duration `yaml:"refresh_token_ttl: " env:"REFRESH_TOKEN_TTL" env-default:"720h"`
+	Environment     string        `yaml:"environment" env:"ENV" required:"true"`
+	Conn            string        `yaml:"conn" env:"CONN" required:"true"`
+	GRPC            GRPCConfig    `yaml:"grpc"`
+	MigrationsPath  string        `yaml:"migrations_path" env:"MIGRATIONS_PATH"`
+	TokenTTL        time.Duration `yaml:"token_ttl" env:"TOKEN_TTL" env-default:"5m"`
+	RefreshTokenTTL time.Duration `yaml:"refresh_token_ttl: " env:"REFRESH_TOKEN_TTL" env-default:"720h"`
+	IdTokenTTL      time.Duration `yaml:"id_token_ttl: " env:"ID_TOKEN_TTL" env-default:"720h"`
 }
 
 type GRPCConfig struct {

@@ -18,7 +18,6 @@ type RefreshToken struct {
 }
 
 type IdToken struct {
-	Id          int64
-	SessionUUID string
-	Exp         int64
+	Id, Exp  int64
+	Iss, Sub string
 }

@@ -15,13 +15,18 @@ var (
 )
 
 const (
-	Env = "TOKEN_SECRET"
+	Env   = "TOKEN_SECRET"
+	IdEnv = "ID_TOKEN_SECRET"
 )
 
 func New(claims jwt.MapClaims) (string, error) {
+	return NewWithSecret(claims, os.Getenv(Env))
+}
+
+func NewWithSecret(claims jwt.MapClaims, secret string) (string, error) {
 	refreshTkn := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	tkn, err := refreshTkn.SignedString([]byte(os.Getenv(Env)))
+	tkn, err := refreshTkn.SignedString([]byte(secret))
 	if err != nil {
 		return "", err
 	}

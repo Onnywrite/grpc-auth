@@ -55,7 +55,6 @@ type AuthClient interface {
 	//  need to log in);
 	//  13 if an internal error occurred
 	Login(ctx context.Context, in *InRequest, opts ...grpc.CallOption) (*IdTokens, error)
-	Logout(ctx context.Context, in *IdToken, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Signup
 	//  links your registered (existing) account to an existing service by its
 	//  id
@@ -255,15 +254,6 @@ func (c *authClient) Login(ctx context.Context, in *InRequest, opts ...grpc.Call
 	return out, nil
 }
 
-func (c *authClient) Logout(ctx context.Context, in *IdToken, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/auth.Auth/Logout", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *authClient) Signup(ctx context.Context, in *AppRequest, opts ...grpc.CallOption) (*AppTokens, error) {
 	out := new(AppTokens)
 	err := c.cc.Invoke(ctx, "/auth.Auth/Signup", in, out, opts...)
@@ -426,7 +416,6 @@ type AuthServer interface {
 	//  need to log in);
 	//  13 if an internal error occurred
 	Login(context.Context, *InRequest) (*IdTokens, error)
-	Logout(context.Context, *IdToken) (*emptypb.Empty, error)
 	// Signup
 	//  links your registered (existing) account to an existing service by its
 	//  id
@@ -599,9 +588,6 @@ func (UnimplementedAuthServer) Recover(context.Context, *InRequest) (*IdTokens, 
 func (UnimplementedAuthServer) Login(context.Context, *InRequest) (*IdTokens, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Login not implemented")
 }
-func (UnimplementedAuthServer) Logout(context.Context, *IdToken) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
-}
 func (UnimplementedAuthServer) Signup(context.Context, *AppRequest) (*AppTokens, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Signup not implemented")
 }
@@ -725,24 +711,6 @@ func _Auth_Login_Handler(srv interface{}, ctx context.Context, dec func(interfac
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServer).Login(ctx, req.(*InRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Auth_Logout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(IdToken)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServer).Logout(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/auth.Auth/Logout",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).Logout(ctx, req.(*IdToken))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1021,10 +989,6 @@ var Auth_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Login",
 			Handler:    _Auth_Login_Handler,
-		},
-		{
-			MethodName: "Logout",
-			Handler:    _Auth_Logout_Handler,
 		},
 		{
 			MethodName: "Signup",

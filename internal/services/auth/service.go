@@ -19,17 +19,17 @@ type Storage interface {
 	SessionById(ctx context.Context, uuid string) (*models.SavedSession, error)
 	Session(ctx context.Context, session *models.Session) (*models.SavedSession, error)
 	TerminateSession(ctx context.Context, uuid string) error
-	// ReviveSession(ctx context.Context, uuid string) error
+	ReviveSession(ctx context.Context, uuid string) error
 	DeleteSession(ctx context.Context, uuid string) error
 }
 
 type AuthService struct {
-	log                       *slog.Logger
-	db                        Storage
-	tokenTTL, refreshTokenTTL time.Duration
+	log                                   *slog.Logger
+	db                                    Storage
+	tokenTTL, refreshTokenTTL, idTokenTTL time.Duration
 }
 
-func New(logger *slog.Logger, db Storage, tokenTTL, refreshTokenTTL time.Duration) *AuthService {
+func New(logger *slog.Logger, db Storage, tokenTTL, refreshTokenTTL, idTokenTTL time.Duration) *AuthService {
 	return &AuthService{
 		log:      logger,
 		db:       db,

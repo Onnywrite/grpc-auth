@@ -30,6 +30,7 @@ var (
 
 	ErrServiceNotExists = errors.New("service does not exist")
 
+	ErrSessionAlreadyOpened     = errors.New("session has already been opened")
 	ErrSessionNotExists         = errors.New("sesson does not exist")
 	ErrSessionAlreadyTerminated = errors.New("session has already been terminated")
 
@@ -138,92 +139,115 @@ func (a *AuthService) Signup(ctx context.Context, idToken string, serviceId int6
 
 	su, err := a.saveSignup(ctx, signup)
 	if err != nil {
+		return err
+	}
+
+	log.Info("signed up", slog.Int64("signup_id", su.Id))
+
+	return nil
+}
+
+func (a *AuthService) Signin(ctx context.Context, idToken string, serviceId int64, info models.SessionInfo) (*gen.AppTokens, error) {
+	const op = "auth.AuthService.Signin"
+	log := a.log.With(slog.String("op", op), slog.Int64("service_id", serviceId), slog.Any("session", info))
+
+	token, err := tokens.ParseId(idToken)
+	if errors.Is(err, tokens.ErrTokenExpired) {
+		return nil, ErrTokenExpired
+	}
+	if err != nil {
+		log.Error("could not parse id token", slog.String("error", err.Error()))
+		return nil, ErrInternal
+	}
+
+	su, err := a.getSignup(ctx, token.Id, serviceId)
+	if err != nil {
 		return nil, err
 	}
 
+	u, err := a.getUser(ctx, models.UserIdentifier{
+		Key:   "user_id",
+		Value: su.UserId,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	session, err, rollback := a.saveSession()
+
+	refresh, err := tokens.Refresh(&models.RefreshToken{
+		SessionUUID: session.UUID,
+		Exp:         time.Now().Add(a.refreshTokenTTL).Unix(),
+	})
+	if err != nil {
+		log.Error("could not generate refresh token", slog.String("error", err.Error()))
+		rollback()
+		return nil, ErrInternal
+	}
+
 	access, err := tokens.Access(&models.AccessToken{
-		Id:        saved.Id,
-		Login:     saved.Login,
+		Id:        token.Id,
+		Login:     u.Login,
 		ServiceId: serviceId,
 		Roles:     []string{},
 		Exp:       time.Now().Add(a.tokenTTL).Unix(),
 	})
 	if err != nil {
 		log.Error("could not generate access token", slog.String("error", err.Error()))
+		rollback()
 		return nil, ErrInternal
 	}
 
-	// TODO: add refresh token
-	// using Signin
-
-	log.Info("signed up", slog.Int64("signup_id", su.Id))
-
 	return &gen.AppTokens{
 		Access:  access,
-		Refresh: "TODO",
+		Refresh: refresh,
 		Profile: &gen.UserProfile{
-			Id:    saved.Id,
-			Login: saved.Login,
-			Email: saved.Email,
-			Phone: saved.Phone,
+			Id:    u.Id,
+			Login: u.Login,
+			Email: u.Email,
+			Phone: u.Phone,
 		},
 	}, nil
 }
 
-// Throws:
-//
-//	ErrAlreadySignedUp
-//	ErrSignedOut
-//	ErrInternal
-func (a *AuthService) saveSignup(ctx context.Context, signup models.Signup) (*models.SavedSignup, error) {
-	const op = "auth.AuthService.saveSignup"
-	log := a.log.With(slog.String("op", op))
+func (a *AuthService) saveSession(ctx context.Context, session *models.Session) (*models.SavedSession, error, func()) {
+	const op = "auth.AuthService.saveSession"
+	log := a.log.With(slog.String("op", op), slog.Int64("service_id", session.ServiceId), slog.Any("user_id", session.UserId))
 
-	su, err := a.db.SaveSignup(ctx, signup)
+	saved, err := a.db.SaveSession(ctx, session)
 	if errors.Is(err, storage.ErrUniqueConstraint) {
-		su, err = a.getSignup(ctx, signup.UserId, signup.UserId)
-		if errors.Is(err, ErrSignedOut) {
-			log.Error("user signed out", slog.Int64("id", su.Id))
-			return nil, err
+		ses, err := a.db.Session(ctx, session)
+		if err != nil {
+			log.Error("could not get session while saving it", slog.String("error", err.Error()))
+			return nil, ErrInternal, nil
 		}
-		return nil, ErrAlreadySignedUp
+
+		if ses.IsTerminated() {
+			err := a.db.ReviveSession(ctx, ses.UUID)
+			if err != nil {
+				log.Error("could not revive session", slog.String("error", err.Error()))
+				return nil, ErrSessionAlreadyOpened, nil
+			}
+			return ses, nil, func() {
+				err = a.db.TerminateSession(ctx, ses.UUID)
+				log.Error("could not rollback and terminate session", slog.String("error", err.Error()))
+			}
+		}
+
+		log.Error("could not save session at all", slog.String("error", err.Error()))
+		return nil, ErrSessionAlreadyOpened, nil
 	}
 	if err != nil {
-		log.Error("saving error", slog.String("error", err.Error()))
-		return nil, ErrInternal
+		log.Error("could not save session at all", slog.String("error", err.Error()))
+		return nil, ErrInternal, nil
 	}
 
-	return su, nil
-}
+	log.Info("saved session", slog.String("session_uuid", saved.UUID))
 
-// Throws;
-//
-//	ErrSignupNotExists
-//	ErrSignedOut
-//	ErrInternal
-func (a *AuthService) getSignup(ctx context.Context, userId, serviceID int64) (*models.SavedSignup, error) {
-	const op = "auth.AuthService.getSignup"
-	log := a.log.With(slog.String("op", op), slog.Int64("user_id", userId), slog.Int64("service_id", serviceID))
-
-	su, err := a.db.Signup(ctx, userId, serviceID)
-	if errors.Is(err, storage.ErrEmptyResult) {
-		log.Error("no signups were found", slog.String("error", err.Error()))
-		return nil, ErrSignupNotExists
+	return saved, nil, func() {
+		err = a.db.DeleteSession(ctx, saved.UUID)
+		log.Error("could not rollback and delete session", slog.String("error", err.Error()))
 	}
-	if err != nil {
-		log.Error("internal error", slog.String("error", err.Error()))
-		return nil, ErrInternal
-	}
-
-	log = log.With(slog.Int64("signup_id", su.Id))
-	log.Info("signup found")
-
-	if su.IsDeleted() {
-		log.Error("signup deleted", slog.Time("deleted_at", *su.DeletedAt))
-		return nil, ErrSignedOut
-	}
-
-	return su, nil
 }
 
 // Throws:
@@ -404,4 +428,60 @@ func (a *AuthService) saveUser(ctx context.Context, user *models.User) (*models.
 	}
 
 	return u, nil
+}
+
+// Throws:
+//
+//	ErrAlreadySignedUp
+//	ErrSignedOut
+//	ErrInternal
+func (a *AuthService) saveSignup(ctx context.Context, signup models.Signup) (*models.SavedSignup, error) {
+	const op = "auth.AuthService.saveSignup"
+	log := a.log.With(slog.String("op", op))
+
+	su, err := a.db.SaveSignup(ctx, signup)
+	if errors.Is(err, storage.ErrUniqueConstraint) {
+		su, err = a.getSignup(ctx, signup.UserId, signup.UserId)
+		if errors.Is(err, ErrSignedOut) {
+			log.Error("user signed out", slog.Int64("id", su.Id))
+			return nil, err
+		}
+		return nil, ErrAlreadySignedUp
+	}
+	if err != nil {
+		log.Error("saving error", slog.String("error", err.Error()))
+		return nil, ErrInternal
+	}
+
+	return su, nil
+}
+
+// Throws;
+//
+//	ErrSignupNotExists
+//	ErrSignedOut
+//	ErrInternal
+func (a *AuthService) getSignup(ctx context.Context, userId, serviceID int64) (*models.SavedSignup, error) {
+	const op = "auth.AuthService.getSignup"
+	log := a.log.With(slog.String("op", op), slog.Int64("user_id", userId), slog.Int64("service_id", serviceID))
+
+	su, err := a.db.Signup(ctx, userId, serviceID)
+	if errors.Is(err, storage.ErrEmptyResult) {
+		log.Error("no signups were found", slog.String("error", err.Error()))
+		return nil, ErrSignupNotExists
+	}
+	if err != nil {
+		log.Error("internal error", slog.String("error", err.Error()))
+		return nil, ErrInternal
+	}
+
+	log = log.With(slog.Int64("signup_id", su.Id))
+	log.Info("signup found")
+
+	if su.IsDeleted() {
+		log.Error("signup deleted", slog.Time("deleted_at", *su.DeletedAt))
+		return nil, ErrSignedOut
+	}
+
+	return su, nil
 }

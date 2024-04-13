@@ -9,7 +9,7 @@ type User struct {
 	Password string  `db:"password" validate:"required,lte=72,gte=8" secret:"1"`
 }
 
-func (u *User) Idendifier() *UserIdentifier {
+func (u *User) Idendifier() UserIdentifier {
 	var identifier UserIdentifier
 
 	switch {
@@ -23,7 +23,7 @@ func (u *User) Idendifier() *UserIdentifier {
 		identifier = UserIdentifier{Key: "login", Value: ""}
 	}
 
-	return &identifier
+	return identifier
 }
 
 type SavedUser struct {
