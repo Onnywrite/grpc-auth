@@ -50,18 +50,21 @@ func (pg *Pg) SaveSignup(ctx context.Context, signup models.Signup) (*models.Sav
 	return su, nil
 }
 
-func (pg *Pg) Signup(ctx context.Context, userId, serviceId int64) (*models.SavedSignup, error) {
+func (pg *Pg) SignupById(ctx context.Context, id int64) (*models.SavedSignup, error) {
+	return pg.whereSignup(ctx, "signup_id = $1", id)
+}
+
+func (pg *Pg) SignupByServiceAndUser(ctx context.Context, serviceId, userId int64) (*models.SavedSignup, error) {
+	return pg.whereSignup(ctx, "service_fk = $1 AND user_fk = $2", serviceId, userId)
+}
+
+func (pg *Pg) whereSignup(ctx context.Context, where string, args ...any) (*models.SavedSignup, error) {
 	const op = "postgres.Pg.Signup"
 
-	s, args, err := sq.Select("signup_id", "user_fk", "service_fk", "at", "banned_at").
-		From("signups").
-		Where(sq.Eq{"user_fk": userId, "service_fk": serviceId}).
-		PlaceholderFormat(sq.Dollar).
-		ToSql()
-
-	if err != nil {
-		return nil, fmt.Errorf("squirrel %s: %w", op, err)
-	}
+	s := fmt.Sprintf(`
+	SELECT signup_id, user_fk, service_fk, at, banned_at
+	FROM signups
+	WHERE %s`, where)
 
 	stmt, err := pg.db.PreparexContext(ctx, s)
 	if err != nil {
