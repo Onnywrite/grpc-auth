@@ -19,3 +19,7 @@ type SavedSignup struct {
 func (su *SavedSignup) IsDeleted() bool {
 	return su.DeletedAt != nil
 }
+
+func (su *SavedSignup) IsBanned() bool {
+	return su.BannedAt != nil
+}

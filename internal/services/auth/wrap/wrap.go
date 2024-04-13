@@ -2,9 +2,12 @@ package wrap
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/Onnywrite/grpc-auth/internal/models"
+	auth "github.com/Onnywrite/grpc-auth/internal/services/auth/common"
+	storage "github.com/Onnywrite/grpc-auth/internal/storage/common"
 )
 
 type Storage interface {
@@ -28,12 +31,313 @@ type Storage interface {
 
 type Wrapper struct {
 	log *slog.Logger
-	db  Storage
+	Storage
 }
 
 func New(logger *slog.Logger, db Storage) *Wrapper {
 	return &Wrapper{
-		log: logger,
-		db:  db,
+		log:     logger,
+		Storage: db,
 	}
+}
+
+// Throws:
+//
+//	ErrSignupNotExists
+//	ErrInternal
+func (w *Wrapper) SaveSession(ctx context.Context, session *models.Session) (*models.SavedSession, func() error, error) {
+	const op = "wrap.Wrapper.SaveSession"
+	log := w.log.With(slog.String("op", op), slog.Int64("signup_id", session.SignupId))
+
+	saved, err := w.Storage.SaveSession(ctx, session)
+	if errors.Is(err, storage.ErrFKConstraint) {
+		log.Error("user has never signed up")
+		return nil, nil, auth.ErrSignupNotExists
+	}
+	if errors.Is(err, storage.ErrUniqueConstraint) {
+		saved, err = w.SessionByInfo(ctx, session.SignupId, session.Info)
+		if errors.Is(err, auth.ErrSessionTerminated) {
+			err = w.Storage.ReviveSession(ctx, saved.UUID)
+			if err != nil {
+				log.Error("error reviving session", slog.String("error", err.Error()))
+				return nil, nil, auth.ErrInternal
+			}
+			log.Info("session revived", slog.String("uuid", saved.UUID))
+			return saved, func() error {
+				return w.TerminateSession(context.Background(), saved.UUID)
+			}, nil
+		}
+		if err != nil {
+			log.Error("error getting session", slog.String("error", err.Error()))
+			return nil, nil, auth.ErrInternal
+		}
+	}
+
+	if err != nil {
+		log.Error("error saving session", slog.String("error", err.Error()))
+		return nil, nil, auth.ErrInternal
+	}
+
+	log.Info("session saved", slog.String("uuid", saved.UUID))
+
+	return saved, func() error {
+		return w.DeleteSession(ctx, saved.UUID)
+	}, nil
+}
+
+// Throws:
+//
+//	ErrSessionNotExists
+//	ErrSessionTerminated
+//	ErrInternal
+func (w *Wrapper) SessionByUuid(ctx context.Context, uuid string) (*models.SavedSession, error) {
+	return w.session(ctx, func(ctx context.Context, keys ...any) (*models.SavedSession, error) {
+		return w.Storage.SessionByUuid(ctx, keys[0].(string))
+	}, uuid)
+}
+
+// Throws:
+//
+//	ErrSessionNotExists
+//	ErrSessionTerminated
+//	ErrInternal
+func (w *Wrapper) SessionByInfo(ctx context.Context, signupId int64, info models.SessionInfo) (*models.SavedSession, error) {
+	return w.session(ctx, func(ctx context.Context, keys ...any) (*models.SavedSession, error) {
+		return w.Storage.SessionByInfo(ctx, keys[0].(int64), keys[1].(models.SessionInfo))
+	}, signupId, info)
+}
+
+type getSessionFn func(ctx context.Context, keys ...any) (*models.SavedSession, error)
+
+// Throws:
+//
+//	ErrSessionNotExists
+//	ErrSessionTerminated
+//	ErrInternal
+func (w *Wrapper) session(ctx context.Context, get getSessionFn, keys ...any) (*models.SavedSession, error) {
+	const op = "w.Wrapper.session"
+	log := w.log.With(slog.String("op", op))
+
+	session, err := get(ctx, keys...)
+	if errors.Is(err, storage.ErrEmptyResult) {
+		log.Error("session not found")
+		return nil, auth.ErrSessionNotExists
+	}
+	if err != nil {
+		log.Error("error getting session", slog.String("error", err.Error()))
+		return nil, auth.ErrInternal
+	}
+
+	if session.IsTerminated() {
+		log.Error("session terminated")
+		return nil, auth.ErrSessionTerminated
+	}
+
+	log.Info("got session", slog.String("uuid", session.UUID))
+
+	return session, nil
+}
+
+// Throws:
+//
+//	ErrSignedOut
+//	ErrUserAlreadyRegistered
+//	ErrServiceNotExists
+//	ErrInternal
+func (w *Wrapper) SaveSignup(ctx context.Context, signup models.Signup) (*models.SavedSignup, error) {
+	const op = "wrap.Wrapper.SaveSignup"
+	log := w.log.With(slog.String("op", op), slog.Int64("service_id", signup.ServiceId), slog.Int64("user_id", signup.UserId))
+
+	su, err := w.Storage.SaveSignup(ctx, signup)
+	if errors.Is(err, storage.ErrUniqueConstraint) {
+		su, err = w.Storage.SignupByServiceAndUser(ctx, signup.UserId, signup.ServiceId)
+		if err != nil {
+			log.Error("error getting signup", slog.String("error", err.Error()))
+			return nil, auth.ErrInternal
+		}
+		if su.IsDeleted() {
+			log.Error("signed out", slog.Int64("id", su.Id))
+			return nil, auth.ErrSignedOut
+		}
+		if su.IsBanned() {
+			log.Error("signup banned", slog.Int64("id", su.Id))
+			return nil, auth.ErrSignupBanned
+		}
+
+		return nil, auth.ErrUserAlreadyRegistered
+	}
+
+	if errors.Is(err, storage.ErrFKConstraint) {
+		log.Error("error service does not exist", slog.String("error", err.Error()))
+		return nil, auth.ErrServiceNotExists
+	}
+
+	if err != nil {
+		log.Error("saving error", slog.String("error", err.Error()))
+		return nil, auth.ErrInternal
+	}
+	log.Info("saved signup", slog.Int64("id", su.Id))
+
+	return su, nil
+}
+
+// Throws:
+//
+//	ErrSignupNotExists
+//	ErrSignedOut
+//	ErrSignupBanned
+//	ErrInternal
+func (w *Wrapper) SignupById(ctx context.Context, id int64) (*models.SavedSignup, error) {
+	return w.signup(ctx, func(ctx context.Context, keys ...any) (*models.SavedSignup, error) {
+		return w.Storage.SignupById(ctx, keys[0].(int64))
+	}, id)
+}
+
+// Throws:
+//
+//	ErrSignupNotExists
+//	ErrSignedOut
+//	ErrSignupBanned
+//	ErrInternal
+func (w *Wrapper) SignupByServiceAndUser(ctx context.Context, serviceId, userId int64) (*models.SavedSignup, error) {
+	return w.signup(ctx, func(ctx context.Context, keys ...any) (*models.SavedSignup, error) {
+		return w.Storage.SignupByServiceAndUser(ctx, keys[0].(int64), keys[1].(int64))
+	}, serviceId, userId)
+}
+
+type getSignupFn func(ctx context.Context, keys ...any) (*models.SavedSignup, error)
+
+// Throws:
+//
+//	ErrSignupNotExists
+//	ErrSignedOut
+//	ErrSignupBanned
+//	ErrInternal
+func (w *Wrapper) signup(ctx context.Context, get getSignupFn, keys ...any) (*models.SavedSignup, error) {
+	const op = "wrap.Wrapper.signupBy"
+	log := w.log.With(slog.String("op", op), slog.Any("keys", keys))
+
+	su, err := get(ctx, keys...)
+	if errors.Is(err, storage.ErrEmptyResult) {
+		log.Error("signup not found")
+		return nil, auth.ErrSignupNotExists
+	}
+	if err != nil {
+		log.Error("getting error", slog.String("error", err.Error()))
+		return nil, auth.ErrInternal
+	}
+
+	if su.IsDeleted() {
+		log.Error("signed out")
+		return nil, auth.ErrSignedOut
+	}
+
+	if su.IsBanned() {
+		log.Error("signup banned", slog.Int64("id", su.Id))
+		return nil, auth.ErrSignupBanned
+	}
+
+	log.Info("got signup", slog.Int64("id", su.Id))
+
+	return su, nil
+}
+
+// Throws;
+//
+//	ErrUserAlreadyRegistered
+//	ErrUserDeleted
+//	ErrInternal in any unexpected situation
+func (w *Wrapper) SaveUser(ctx context.Context, user *models.User) (*models.SavedUser, error) {
+	const op = "wrap.Wrapper.SaveUser"
+	log := w.log.With(slog.String("op", op))
+
+	u, err := w.Storage.SaveUser(ctx, user)
+	if errors.Is(err, storage.ErrUniqueConstraint) {
+		u, err = w.UserByLogin(ctx, *user.Login)
+		if err != nil {
+			log.Error("user deleted", slog.Int64("id", u.Id), slog.String("error", err.Error()))
+			return nil, err
+		}
+		return nil, auth.ErrUserAlreadyRegistered
+	}
+	if err != nil {
+		log.Error("saving error", slog.String("error", err.Error()))
+		return nil, auth.ErrInternal
+	}
+	log.Info("saved user", slog.Int64("id", u.Id))
+
+	return u, nil
+}
+
+// Throws;
+//
+//	ErrInvalidCredentials if nothing found
+//	ErrUserDeleted
+//	ErrInternal in any unexpected situation
+func (w *Wrapper) UserByLogin(ctx context.Context, login string) (*models.SavedUser, error) {
+	return w.user(ctx, func(ctx context.Context, key any) (*models.SavedUser, error) {
+		return w.Storage.UserByLogin(ctx, key.(string))
+	}, login)
+}
+
+// Throws;
+//
+//	ErrInvalidCredentials if nothing found
+//	ErrUserDeleted
+//	ErrInternal in any unexpected situation
+func (w *Wrapper) UserByEmail(ctx context.Context, email string) (*models.SavedUser, error) {
+	return w.user(ctx, func(ctx context.Context, key any) (*models.SavedUser, error) {
+		return w.Storage.UserByEmail(ctx, key.(string))
+	}, email)
+}
+
+// Throws;
+//
+//	ErrInvalidCredentials if nothing found
+//	ErrUserDeleted
+//	ErrInternal in any unexpected situation
+func (w *Wrapper) UserByPhone(ctx context.Context, phone string) (*models.SavedUser, error) {
+	return w.user(ctx, func(ctx context.Context, key any) (*models.SavedUser, error) {
+		return w.Storage.UserByLogin(ctx, key.(string))
+	}, phone)
+}
+
+// Throws;
+//
+//	ErrInvalidCredentials if nothing found
+//	ErrUserDeleted
+//	ErrInternal in any unexpected situation
+func (w *Wrapper) UserById(ctx context.Context, id int64) (*models.SavedUser, error) {
+	return w.user(ctx, func(ctx context.Context, key any) (*models.SavedUser, error) {
+		return w.Storage.UserById(ctx, key.(int64))
+	}, id)
+}
+
+type getUserFn func(ctx context.Context, key any) (*models.SavedUser, error)
+
+// Throws;
+//
+//	ErrInvalidCredentials if nothing found
+//	ErrUserDeleted
+//	ErrInternal in any unexpected situation
+func (w *Wrapper) user(ctx context.Context, get getUserFn, key any) (*models.SavedUser, error) {
+	const op = "wrap.Wrapper.GetUserByLogin"
+	log := w.log.With(slog.String("op", op), slog.Any("login", key))
+
+	saved, err := get(ctx, key)
+	if errors.Is(err, storage.ErrEmptyResult) {
+		log.Error("no user found")
+		return nil, auth.ErrInvalidCredentials
+	}
+	if err != nil {
+		log.Error("getting error", slog.String("error", err.Error()))
+		return nil, auth.ErrInternal
+	}
+
+	if saved.IsDeleted() {
+		log.Error("user deleted")
+		return saved, auth.ErrUserDeleted
+	}
+
+	return saved, nil
 }
