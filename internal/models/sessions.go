@@ -3,9 +3,8 @@ package models
 import "time"
 
 type Session struct {
-	UserId    int64 `validate:"gte=0"`
-	ServiceId int64 `validate:"gte=0"`
-	Info      SessionInfo
+	SignupId int64 `validate:"gte=0"`
+	Info     SessionInfo
 }
 
 type SavedSession struct {
