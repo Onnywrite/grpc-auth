@@ -9,23 +9,6 @@ type User struct {
 	Password string  `db:"password" validate:"required,lte=72,gte=8" secret:"1"`
 }
 
-func (u *User) Idendifier() UserIdentifier {
-	var identifier UserIdentifier
-
-	switch {
-	case u.Login != nil:
-		identifier = UserIdentifier{Key: "login", Value: *u.Login}
-	case u.Email != nil:
-		identifier = UserIdentifier{Key: "email", Value: *u.Email}
-	case u.Phone != nil:
-		identifier = UserIdentifier{Key: "phone", Value: *u.Phone}
-	default:
-		identifier = UserIdentifier{Key: "login", Value: ""}
-	}
-
-	return identifier
-}
-
 type SavedUser struct {
 	Id        int64      `db:"user_id"`
 	Login     string     `db:"login"`
