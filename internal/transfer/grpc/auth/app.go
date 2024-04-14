@@ -30,10 +30,13 @@ func (authServer) RecoverSignup(context.Context, *gen.AppRequest) (*gen.AppToken
 }
 
 func (a authServer) Signin(c context.Context, r *gen.AppRequest) (*gen.AppTokens, error) {
-	info := models.SessionInfo{
-		Browser: r.Info.Browser,
-		Ip:      r.Info.Ip,
-		OS:      r.Info.Os,
+	var info models.SessionInfo
+	if r.Info != nil {
+		info = models.SessionInfo{
+			Browser: r.Info.Browser,
+			Ip:      r.Info.Ip,
+			OS:      r.Info.Os,
+		}
 	}
 
 	resp, err := a.service.Signin(c, r.IdToken, r.ServiceId, info)

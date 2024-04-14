@@ -22,10 +22,13 @@ func (a authServer) Register(c context.Context, r *gen.InRequest) (*gen.IdTokens
 		Password: r.Credentials.Password,
 	}
 
-	info := models.SessionInfo{
-		Browser: r.SessionInfo.Browser,
-		Ip:      r.SessionInfo.Ip,
-		OS:      r.SessionInfo.Os,
+	var info models.SessionInfo
+	if r.Info != nil {
+		info = models.SessionInfo{
+			Browser: r.Info.Browser,
+			Ip:      r.Info.Ip,
+			OS:      r.Info.Os,
+		}
 	}
 
 	resp, err := a.service.Register(c, user, info)
@@ -48,10 +51,13 @@ func (a authServer) Login(c context.Context, r *gen.InRequest) (*gen.IdTokens, e
 		Password: r.Credentials.Password,
 	}
 
-	info := models.SessionInfo{
-		Browser: r.SessionInfo.Browser,
-		Ip:      r.SessionInfo.Ip,
-		OS:      r.SessionInfo.Os,
+	var info models.SessionInfo
+	if r.Info != nil {
+		info = models.SessionInfo{
+			Browser: r.Info.Browser,
+			Ip:      r.Info.Ip,
+			OS:      r.Info.Os,
+		}
 	}
 
 	resp, err := a.service.Login(c, user, info)

@@ -251,7 +251,7 @@ message UserCredentials {
 
 message InRequest {
   UserCredentials credentials = 1;
-  SessionInfo session_info = 3;
+  SessionInfo info = 3;
 };
 
 message IdTokens {

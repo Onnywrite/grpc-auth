@@ -22,7 +22,7 @@ func (s *SavedSession) IsTerminated() bool {
 }
 
 type SessionInfo struct {
-	Browser *string `validate:"alphanum"`
-	Ip      *string `validate:"ip"`
-	OS      *string `validate:"alphanum"`
+	Browser *string `validate:"omitempty,alphanum"`
+	Ip      *string `validate:"omitempty,ip"`
+	OS      *string `validate:"omitempty,alphanum"`
 }
