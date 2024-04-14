@@ -17,7 +17,7 @@ func (pg *Pg) SaveSignup(ctx context.Context, signup models.Signup) (*models.Sav
 
 	stmt, err := pg.db.PreparexContext(ctx, `
 		INSERT INTO signups (user_fk, service_fk)
-		VALUES $1, $2
+		VALUES ($1, $2)
 		RETURNING signup_id, user_fk, service_fk, at, banned_at`)
 	if err != nil {
 		return nil, fmt.Errorf("preparex %s: %w", op, err)

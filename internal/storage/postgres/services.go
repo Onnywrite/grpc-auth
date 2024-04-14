@@ -15,7 +15,7 @@ func (pg *Pg) SaveService(ctx context.Context, service *models.Service) (*models
 
 	stmt, err := pg.db.PreparexContext(ctx, `
 		INSERT INTO services (name, owner_fk)
-		VALUES $1, $2
+		VALUES ($1, $2)
 		RETURNING service_id, owner_fk, name`)
 	if err != nil {
 		return nil, fmt.Errorf("preparex %s: %w", op, err)
