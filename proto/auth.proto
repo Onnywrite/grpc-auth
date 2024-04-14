@@ -8,6 +8,24 @@ import "google/protobuf/empty.proto";
 option go_package = "onnywrite.sso.v1;gen";
 option csharp_namespace = "Onnywrite.SSO.Auth";
 
+/*
+ * Your flow will look like:
+ * first:
+ * 1. Register
+ * 2. Signup
+ * 3. Check
+ * 4. Resignin if Check returned other than 0
+ * ...
+ * 5. Signout
+ * 
+ * second:
+ * 1. Signin
+ * 2. Check
+ * 4. Resignin if Check returned other than 0
+ * ...
+ * 5. Signout
+*/
+
 service Auth {
 
   rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
