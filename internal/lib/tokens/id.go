@@ -24,7 +24,7 @@ func ParseId(tkn string) (*models.IdToken, error) {
 			return nil, ErrUnexpectedSigningMethod
 		}
 
-		return []byte(os.Getenv(Env)), nil
+		return []byte(os.Getenv(IdEnv)), nil
 	})
 
 	if err != nil {
