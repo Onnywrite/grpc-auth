@@ -184,7 +184,7 @@ func (a *AuthService) Signup(ctx context.Context, idToken string, serviceId int6
 		return nil, err
 	}
 
-	log.Info("signed up", slog.Int64("signup_id", su.Id))
+	log.Info("signed up")
 
 	return a.openSession(ctx, su, user, info)
 }
@@ -225,18 +225,19 @@ func (a *AuthService) Signin(ctx context.Context, idToken string, serviceId int6
 
 func (a *AuthService) openSession(ctx context.Context, signup *models.SavedSignup, user *models.SavedUser, info models.SessionInfo) (*gen.AppTokens, error) {
 	const op = "a.AuthService.openSession"
-	log := a.log.With(slog.String("op", op), slog.Int64("signup_id", signup.Id))
+	log := a.log.With(slog.String("op", op), slog.Int64("service_id", signup.ServiceId), slog.Int64("user_id", signup.UserId))
 
 	session, rollback, err := a.db.SaveSession(ctx, &models.Session{
-		SignupId: signup.Id,
-		Info:     info,
+		ServiceId: signup.ServiceId,
+		UserId:    signup.UserId,
+		Info:      info,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	var refresh, access string
-	errorsCh := make(chan error, 2)
+	errorsCh := make(chan error, 5)
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
@@ -257,6 +258,7 @@ func (a *AuthService) openSession(ctx context.Context, signup *models.SavedSignu
 		if err33 != nil {
 			log.Error("could not generate refresh token", slog.String("error", err.Error()))
 			errorsCh <- auth.ErrInternal
+			return
 		}
 		errorsCh <- nil
 	}()
@@ -352,23 +354,15 @@ func (a *AuthService) Resignin(ctx context.Context, refresh string) (*gen.AppTok
 	if err != nil {
 		return nil, err
 	}
-	log = log.With(slog.Int64("signup_id", session.SignupId))
 	log.Info("got session")
 
-	signup, err := a.db.SignupById(ctx, session.SignupId)
-	if err != nil {
-		return nil, err
-	}
-	log = log.With(slog.Int64("user_id", signup.UserId), slog.Int64("service_id", signup.ServiceId))
-	log.Info("got signup")
-
-	user, err := a.db.UserById(ctx, signup.UserId)
+	user, err := a.db.UserById(ctx, session.UserId)
 	if err != nil {
 		return nil, err
 	}
 	log.Info("got user")
 
-	access, err := a.updateAccessToken(ctx, user, signup.ServiceId)
+	access, err := a.updateAccessToken(ctx, user, session.ServiceId)
 	if err != nil {
 		return nil, err
 	}

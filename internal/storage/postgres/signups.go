@@ -18,7 +18,7 @@ func (pg *Pg) SaveSignup(ctx context.Context, signup models.Signup) (*models.Sav
 	stmt, err := pg.db.PreparexContext(ctx, `
 		INSERT INTO signups (user_fk, service_fk)
 		VALUES ($1, $2)
-		RETURNING signup_id, user_fk, service_fk, at, banned_at`)
+		RETURNING user_fk, service_fk, at, banned_at`)
 	if err != nil {
 		return nil, fmt.Errorf("preparex %s: %w", op, err)
 	}
@@ -42,10 +42,6 @@ func (pg *Pg) SaveSignup(ctx context.Context, signup models.Signup) (*models.Sav
 	return su, nil
 }
 
-func (pg *Pg) SignupById(ctx context.Context, id int64) (*models.SavedSignup, error) {
-	return pg.whereSignup(ctx, "signup_id = $1", id)
-}
-
 func (pg *Pg) SignupByServiceAndUser(ctx context.Context, serviceId, userId int64) (*models.SavedSignup, error) {
 	return pg.whereSignup(ctx, "service_fk = $1 AND user_fk = $2", serviceId, userId)
 }
@@ -54,7 +50,7 @@ func (pg *Pg) whereSignup(ctx context.Context, where string, args ...any) (*mode
 	const op = "postgres.Pg.Signup"
 
 	s := fmt.Sprintf(`
-	SELECT signup_id, user_fk, service_fk, at, banned_at
+	SELECT user_fk, service_fk, at, banned_at, deleted_at
 	FROM signups
 	WHERE %s`, where)
 

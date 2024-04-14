@@ -16,13 +16,14 @@ func (pg *Pg) SaveSession(ctx context.Context, session *models.Session) (*models
 	const op = "postgres.Pg.SaveSession"
 
 	stmt, err := pg.db.PreparexContext(ctx, `
-		INSERT INTO sessions (signup_fk, ip, browser, os) VALUES ($1, $2, $3, $4)
-		RETURNING session_uuid, signup_fk, ip, browser, os, at`)
+		INSERT INTO sessions (service_fk, user_fk, ip, browser, os)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING session_uuid, service_fk, user_fk, ip, browser, os, at`)
 	if err != nil {
 		return nil, fmt.Errorf("preparex %s: %w", op, err)
 	}
 
-	row := stmt.QueryRowxContext(ctx, session.SignupId, session.Info.Ip, session.Info.Browser, session.Info.OS)
+	row := stmt.QueryRowxContext(ctx, session.ServiceId, session.UserId, session.Info.Ip, session.Info.Browser, session.Info.OS)
 
 	err = row.Err()
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
@@ -49,8 +50,8 @@ func (pg *Pg) SessionByUuid(ctx context.Context, uuid string) (*models.SavedSess
 	return pg.whereSession(ctx, "session_uuid = $1", uuid)
 }
 
-func (pg *Pg) SessionByInfo(ctx context.Context, signupId int64, info models.SessionInfo) (*models.SavedSession, error) {
-	return pg.whereSession(ctx, "browser = $1 AND ip = $2 AND os = $3 AND signup_fk = $4", info.Browser, info.Ip, info.OS, signupId)
+func (pg *Pg) SessionByInfo(ctx context.Context, serviceId, userId int64, info models.SessionInfo) (*models.SavedSession, error) {
+	return pg.whereSession(ctx, "browser = $1 AND ip = $2 AND os = $3 AND service_fk = $4 AND user_fk = $5", info.Browser, info.Ip, info.OS, serviceId, userId)
 }
 
 func (pg *Pg) whereSession(ctx context.Context, where string, args ...any) (*models.SavedSession, error) {

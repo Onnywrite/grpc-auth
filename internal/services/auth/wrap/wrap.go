@@ -18,12 +18,11 @@ type Storage interface {
 	UserByPhone(ctx context.Context, phone string) (*models.SavedUser, error)
 
 	SaveSignup(ctx context.Context, signup models.Signup) (*models.SavedSignup, error)
-	SignupById(ctx context.Context, id int64) (*models.SavedSignup, error)
 	SignupByServiceAndUser(ctx context.Context, serviceId, userId int64) (*models.SavedSignup, error)
 
 	SaveSession(ctx context.Context, session *models.Session) (*models.SavedSession, error)
 	SessionByUuid(ctx context.Context, uuid string) (*models.SavedSession, error)
-	SessionByInfo(ctx context.Context, signupId int64, info models.SessionInfo) (*models.SavedSession, error)
+	SessionByInfo(ctx context.Context, serviceId, userId int64, info models.SessionInfo) (*models.SavedSession, error)
 	TerminateSession(ctx context.Context, uuid string) error
 	ReviveSession(ctx context.Context, uuid string) error
 	DeleteSession(ctx context.Context, uuid string) error
@@ -47,7 +46,7 @@ func New(logger *slog.Logger, db Storage) *Wrapper {
 //	ErrInternal
 func (w *Wrapper) SaveSession(ctx context.Context, session *models.Session) (*models.SavedSession, func() error, error) {
 	const op = "wrap.Wrapper.SaveSession"
-	log := w.log.With(slog.String("op", op), slog.Int64("signup_id", session.SignupId))
+	log := w.log.With(slog.String("op", op), slog.Int64("service_id", session.ServiceId), slog.Int64("user_id", session.UserId))
 
 	saved, err := w.Storage.SaveSession(ctx, session)
 	if errors.Is(err, storage.ErrFKConstraint) {
@@ -55,7 +54,7 @@ func (w *Wrapper) SaveSession(ctx context.Context, session *models.Session) (*mo
 		return nil, nil, auth.ErrSignupNotExists
 	}
 	if errors.Is(err, storage.ErrUniqueConstraint) {
-		saved, err = w.SessionByInfo(ctx, session.SignupId, session.Info)
+		saved, err = w.SessionByInfo(ctx, session.ServiceId, session.UserId, session.Info)
 		if errors.Is(err, auth.ErrSessionTerminated) {
 			err = w.Storage.ReviveSession(ctx, saved.UUID)
 			if err != nil {
@@ -101,10 +100,10 @@ func (w *Wrapper) SessionByUuid(ctx context.Context, uuid string) (*models.Saved
 //	ErrSessionNotExists
 //	ErrSessionTerminated
 //	ErrInternal
-func (w *Wrapper) SessionByInfo(ctx context.Context, signupId int64, info models.SessionInfo) (*models.SavedSession, error) {
+func (w *Wrapper) SessionByInfo(ctx context.Context, serviceId, userId int64, info models.SessionInfo) (*models.SavedSession, error) {
 	return w.session(ctx, func(ctx context.Context, keys ...any) (*models.SavedSession, error) {
-		return w.Storage.SessionByInfo(ctx, keys[0].(int64), keys[1].(models.SessionInfo))
-	}, signupId, info)
+		return w.Storage.SessionByInfo(ctx, keys[0].(int64), keys[1].(int64), keys[2].(models.SessionInfo))
+	}, serviceId, userId, info)
 }
 
 type getSessionFn func(ctx context.Context, keys ...any) (*models.SavedSession, error)
@@ -156,11 +155,11 @@ func (w *Wrapper) SaveSignup(ctx context.Context, signup models.Signup) (*models
 			return nil, auth.ErrInternal
 		}
 		if su.IsDeleted() {
-			log.Error("signed out", slog.Int64("id", su.Id))
+			log.Error("signed out")
 			return nil, auth.ErrSignedOut
 		}
 		if su.IsBanned() {
-			log.Error("signup banned", slog.Int64("id", su.Id))
+			log.Error("signup banned")
 			return nil, auth.ErrSignupBanned
 		}
 
@@ -176,21 +175,9 @@ func (w *Wrapper) SaveSignup(ctx context.Context, signup models.Signup) (*models
 		log.Error("saving error", slog.String("error", err.Error()))
 		return nil, auth.ErrInternal
 	}
-	log.Info("saved signup", slog.Int64("id", su.Id))
+	log.Info("saved signup")
 
 	return su, nil
-}
-
-// Throws:
-//
-//	ErrSignupNotExists
-//	ErrSignedOut
-//	ErrSignupBanned
-//	ErrInternal
-func (w *Wrapper) SignupById(ctx context.Context, id int64) (*models.SavedSignup, error) {
-	return w.signup(ctx, func(ctx context.Context, keys ...any) (*models.SavedSignup, error) {
-		return w.Storage.SignupById(ctx, keys[0].(int64))
-	}, id)
 }
 
 // Throws:
@@ -233,11 +220,11 @@ func (w *Wrapper) signup(ctx context.Context, get getSignupFn, keys ...any) (*mo
 	}
 
 	if su.IsBanned() {
-		log.Error("signup banned", slog.Int64("id", su.Id))
+		log.Error("signup banned")
 		return nil, auth.ErrSignupBanned
 	}
 
-	log.Info("got signup", slog.Int64("id", su.Id))
+	log.Info("got signup")
 
 	return su, nil
 }
