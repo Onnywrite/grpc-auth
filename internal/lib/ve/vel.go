@@ -2,39 +2,27 @@ package ve
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/go-playground/validator/v10"
 )
 
-type ValidationErrorsList []ValidationError
+type ValidationErrorsList struct {
+	Code   string
+	Errors []string
+}
 
-func From(ves validator.ValidationErrors) ValidationErrorsList {
-	vel := make(ValidationErrorsList, 0, len(ves))
+func From(ves validator.ValidationErrors) *ValidationErrorsList {
+	errors := make([]string, 0, len(ves))
 
 	for _, e := range ves {
-		// f, ok := e.Type().FieldByName(e.StructField())
-		// if !ok {
-		// 	continue
-		// }
-
-		// has, ok := f.Tag.Lookup("secret")
-		// if !ok {
-		// 	has = "0"
-		// }
-
-		var value any
-		// if secret, _ := strconv.ParseBool(has); !secret {
-		value = e.Value()
-		// }
-
-		vel = append(vel, ValidationError{
-			FieldName:          e.StructField(),
-			ViolatedConstraint: e.Tag(),
-			Value:              value,
-		})
+		errors = append(errors, fmt.Sprintf("%s is invalid", e.StructField()))
 	}
 
-	return vel
+	return &ValidationErrorsList{
+		Code:   "000400",
+		Errors: errors,
+	}
 }
 
 func (vel ValidationErrorsList) JSON() string {
@@ -44,15 +32,4 @@ func (vel ValidationErrorsList) JSON() string {
 
 func (vel ValidationErrorsList) Error() string {
 	return vel.JSON()
-}
-
-type ValidationError struct {
-	FieldName          string `json:"Field"`
-	ViolatedConstraint string `json:"Constraint"`
-	Value              any    `json:"Value"`
-}
-
-func (ve *ValidationError) JSON() string {
-	bytes, _ := json.Marshal(&ve)
-	return string(bytes)
 }
