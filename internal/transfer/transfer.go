@@ -17,7 +17,7 @@ type AuthService interface {
 	// RecoverSignup(ctx context.Context, idToken string, serviceId int64, info models.SessionInfo) (*gen.AppTokens, error)
 	Signin(ctx context.Context, idToken string, serviceId int64, info models.SessionInfo) (*gen.AppTokens, error)
 	Signout(ctx context.Context, refresh string) error
-	Resignin(ctx context.Context, refresh string) error
+	Resignin(ctx context.Context, refresh string) (*gen.AppTokens, error)
 	Check(ctx context.Context, access string) error
 	// Unsign(ctx context.Context, access string) error
 }

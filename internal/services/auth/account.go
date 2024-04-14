@@ -242,21 +242,9 @@ func (a *AuthService) openSession(ctx context.Context, signup *models.SavedSignu
 
 	go func() {
 		defer wg.Done()
-		// TODO: get roles
-
 		var err33 error
-		access, err33 = tokens.Access(&models.AccessToken{
-			Id:        user.Id,
-			Login:     user.Login,
-			ServiceId: signup.ServiceId,
-			Roles:     []string{},
-			Exp:       time.Now().Add(a.tokenTTL).Unix(),
-		})
-		if err33 != nil {
-			log.Error("could not generate access token", slog.String("error", err.Error()))
-			errorsCh <- auth.ErrInternal
-		}
-		errorsCh <- nil
+		access, err33 = a.updateAccessToken(ctx, user, signup.ServiceId)
+		errorsCh <- err33
 	}()
 
 	go func() {
@@ -295,6 +283,27 @@ func (a *AuthService) openSession(ctx context.Context, signup *models.SavedSignu
 	}, nil
 }
 
+func (a *AuthService) updateAccessToken(ctx context.Context, user *models.SavedUser, serviceId int64) (string, error) {
+	const op = "a.AuthService.updateAccessToken"
+	log := a.log.With(slog.String("op", op))
+
+	// TODO: get roles
+
+	access, err := tokens.Access(&models.AccessToken{
+		Id:        user.Id,
+		Login:     user.Login,
+		ServiceId: serviceId,
+		Roles:     []string{},
+		Exp:       time.Now().Add(a.tokenTTL).Unix(),
+	})
+	if err != nil {
+		log.Error("could not generate access token", slog.String("error", err.Error()))
+		return "", auth.ErrInternal
+	}
+
+	return access, nil
+}
+
 func (a *AuthService) Signout(ctx context.Context, refresh string) error {
 	const op = "auth.AuthService.Signout"
 	log := a.log.With(slog.String("op", op))
@@ -324,14 +333,72 @@ func (a *AuthService) Signout(ctx context.Context, refresh string) error {
 	return nil
 }
 
-func (a *AuthService) Resignin(ctx context.Context, refresh string) error {
+func (a *AuthService) Resignin(ctx context.Context, refresh string) (*gen.AppTokens, error) {
 	const op = "a.AuthService.Resignin"
 	log := a.log.With(slog.String("op", op))
-	
-	
+
+	token, err := tokens.ParseRefresh(refresh)
+	if errors.Is(err, tokens.ErrTokenExpired) {
+		return nil, auth.ErrTokenExpired
+	}
+	if err != nil {
+		log.Error("could not process refresh token", slog.String("token", refresh), slog.String("error", err.Error()))
+		return nil, auth.ErrUnauthorized
+	}
+	log = log.With(slog.String("session_uuid", token.SessionUUID))
+	log.Info("token is processed")
+
+	session, err := a.db.SessionByUuid(ctx, token.SessionUUID)
+	if err != nil {
+		return nil, err
+	}
+	log = log.With(slog.Int64("signup_id", session.SignupId))
+	log.Info("got session")
+
+	signup, err := a.db.SignupById(ctx, session.SignupId)
+	if err != nil {
+		return nil, err
+	}
+	log = log.With(slog.Int64("user_id", signup.UserId), slog.Int64("service_id", signup.ServiceId))
+	log.Info("got signup")
+
+	user, err := a.db.UserById(ctx, signup.UserId)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("got user")
+
+	access, err := a.updateAccessToken(ctx, user, signup.ServiceId)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("resigned in")
+
+	return &gen.AppTokens{
+		Access:  access,
+		Refresh: refresh,
+		Profile: &gen.UserProfile{
+			Id:    user.Id,
+			Login: user.Login,
+			Email: user.Email,
+			Phone: user.Phone,
+		},
+	}, nil
 }
 
 func (a *AuthService) Check(ctx context.Context, access string) error {
 	const op = "a.AuthService.Check"
 	log := a.log.With(slog.String("op", op))
+
+	token, err := tokens.ParseAccess(access)
+	if errors.Is(err, tokens.ErrTokenExpired) {
+		return auth.ErrTokenExpired
+	}
+	if err != nil {
+		log.Error("could not process refresh token", slog.String("token", access), slog.String("error", err.Error()))
+		return auth.ErrUnauthorized
+	}
+	log.Info("token checked", slog.Int64("user_id", token.Id))
+
+	return nil
 }
