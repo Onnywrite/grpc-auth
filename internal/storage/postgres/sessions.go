@@ -80,11 +80,11 @@ func (pg *Pg) whereSession(ctx context.Context, where string, args ...any) (*mod
 }
 
 func (pg *Pg) TerminateSession(ctx context.Context, uuid string) error {
-	return pg.updateSession(ctx, "terminated_at = NOW()", "session_uuid = $1", uuid)
+	return pg.updateSession(ctx, "terminated_at = NOW()", "session_uuid = $1 AND terminated_at IS NULL", uuid)
 }
 
 func (pg *Pg) ReviveSession(ctx context.Context, uuid string) error {
-	return pg.updateSession(ctx, "terminated_at = NULL", "session_uuid = $1", uuid)
+	return pg.updateSession(ctx, "terminated_at = NULL", "session_uuid = $1 AND terminated_at IS NOT NULL", uuid)
 }
 
 func (pg *Pg) updateSession(ctx context.Context, set, where string, args ...any) error {
