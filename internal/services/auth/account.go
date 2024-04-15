@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/Onnywrite/grpc-auth/gen"
+	se "github.com/Onnywrite/grpc-auth/internal/lib/service-errors"
 	"github.com/Onnywrite/grpc-auth/internal/lib/tokens"
-	"github.com/Onnywrite/grpc-auth/internal/lib/ve"
 	"github.com/Onnywrite/grpc-auth/internal/models"
 	auth "github.com/Onnywrite/grpc-auth/internal/services/auth/common"
 	storage "github.com/Onnywrite/grpc-auth/internal/storage/common"
@@ -32,7 +32,7 @@ func identify(u *models.User) {
 
 // Throws:
 //
-//	ValidationErrorsList
+//	Errors
 //	ErrUserAlreadyRegistered
 //	ErrUserDeleted
 //	ErrInternal
@@ -43,7 +43,7 @@ func (a *AuthService) Register(ctx context.Context, user *models.User, info mode
 	identify(user)
 
 	if err := validator.New().Struct(user); err != nil {
-		errs := ve.From(err.(validator.ValidationErrors))
+		errs := se.From(err.(validator.ValidationErrors))
 		log.Error("user validation error", slog.String("validation_errors", errs.Error()))
 		return nil, errs
 	}
@@ -68,7 +68,7 @@ func (a *AuthService) Register(ctx context.Context, user *models.User, info mode
 
 // Throws:
 //
-//	ValidationErrorsList
+//	Errors
 //	ErrInvalidCredentials
 //	ErrSignupNotExists
 //	ErrAlreadyLoggedIn
@@ -78,14 +78,14 @@ func (a *AuthService) Login(ctx context.Context, user *models.User, info models.
 	log := a.log.With(slog.String("op", op), slog.Any("session", info))
 
 	if err := validator.New().StructExcept(user, "Login"); err != nil {
-		errs := ve.From(err.(validator.ValidationErrors))
+		errs := se.From(err.(validator.ValidationErrors))
 		log.Error("user validation error", slog.String("validation_errors", errs.Error()))
 		return nil, errs
 	}
 	log.Info("user passed validation")
 
 	if err := validator.New().Struct(info); err != nil {
-		errs := ve.From(err.(validator.ValidationErrors))
+		errs := se.From(err.(validator.ValidationErrors))
 		log.Error("session info validation error", slog.String("validation_errors", errs.Error()))
 		return nil, errs
 	}
@@ -146,7 +146,7 @@ func (a *AuthService) openIdConnect(user *models.SavedUser) (*gen.IdTokens, erro
 
 // Throws:
 //
-//	ValidationErrorsList
+//	Errors
 //	ErrInvalidCredentials
 //	ErrServiceNotExists
 //	ErrSignedOut
@@ -157,7 +157,7 @@ func (a *AuthService) Signup(ctx context.Context, idToken string, serviceId int6
 	log := a.log.With(slog.String("op", op), slog.Int64("service_id", serviceId), slog.Any("session", info))
 
 	if err := validator.New().Struct(info); err != nil {
-		errs := ve.From(err.(validator.ValidationErrors))
+		errs := se.From(err.(validator.ValidationErrors))
 		log.Error("session info validation error", slog.String("validation_errors", errs.Error()))
 		return nil, errs
 	}
@@ -194,7 +194,7 @@ func (a *AuthService) Signin(ctx context.Context, idToken string, serviceId int6
 	log := a.log.With(slog.String("op", op), slog.Int64("service_id", serviceId), slog.Any("session", info))
 
 	if err := validator.New().Struct(info); err != nil {
-		errs := ve.From(err.(validator.ValidationErrors))
+		errs := se.From(err.(validator.ValidationErrors))
 		log.Error("session info validation error", slog.String("validation_errors", errs.Error()))
 		return nil, errs
 	}
