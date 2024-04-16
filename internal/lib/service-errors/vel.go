@@ -1,8 +1,10 @@
 package se
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -52,4 +54,56 @@ func ErrorSlice(code Code, errors []string) Errors {
 		Code:   code,
 		Errors: errors,
 	}
+}
+
+type ValidateFn func(*validator.Validate, any) error
+
+func ValidateWith(ctx context.Context, validate ValidateFn, structs ...any) *Errors {
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	errors := make(chan Errors)
+
+	go func() {
+		defer wg.Done()
+		defer close(errors)
+		v := validator.New()
+		for i := range structs {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				if err := validate(v, structs[i]); err != nil {
+					errs := From(err.(validator.ValidationErrors))
+					errors <- errs
+				}
+			}
+		}
+	}()
+
+	out := &Errors{Code: CodeValidation}
+
+	go func() {
+		defer wg.Done()
+		for err := range errors {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				out.Errors = append(out.Errors, err.Errors...)
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	if len(out.Errors) > 0 {
+		return out
+	}
+	return nil
+}
+
+func Validate(ctx context.Context, structs ...any) *Errors {
+	return ValidateWith(ctx, func(v *validator.Validate, s any) error {
+		return v.StructCtx(ctx, s)
+	}, structs...)
 }

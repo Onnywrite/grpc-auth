@@ -42,12 +42,11 @@ func (a *AuthService) Register(ctx context.Context, user *models.User, info mode
 
 	identify(user)
 
-	if err := validator.New().Struct(user); err != nil {
-		errs := se.From(err.(validator.ValidationErrors))
-		log.Error("user validation error", slog.String("validation_errors", errs.Error()))
-		return nil, errs
+	if err := se.Validate(ctx, user, info); err != nil {
+		log.Error("validation error", slog.String("validation_errors", err.Error()))
+		return nil, err
 	}
-	log.Info("passed validation")
+	log.Debug("passed validation")
 
 	hashed, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -77,19 +76,13 @@ func (a *AuthService) Login(ctx context.Context, user *models.User, info models.
 	const op = "auth.AuthService.Login"
 	log := a.log.With(slog.String("op", op), slog.Any("session", info))
 
-	if err := validator.New().StructExcept(user, "Login"); err != nil {
-		errs := se.From(err.(validator.ValidationErrors))
-		log.Error("user validation error", slog.String("validation_errors", errs.Error()))
-		return nil, errs
+	if err := se.ValidateWith(ctx, func(v *validator.Validate, s any) error {
+		return v.StructExceptCtx(ctx, s, "Login")
+	}, user, info); err != nil {
+		log.Error("validation error", slog.String("validation_errors", err.Error()))
+		return nil, err
 	}
-	log.Info("user passed validation")
-
-	if err := validator.New().Struct(info); err != nil {
-		errs := se.From(err.(validator.ValidationErrors))
-		log.Error("session info validation error", slog.String("validation_errors", errs.Error()))
-		return nil, errs
-	}
-	log.Info("session info passed validation")
+	log.Debug("user passed validation")
 
 	u := &models.SavedUser{}
 	var err error
@@ -156,11 +149,11 @@ func (a *AuthService) Signup(ctx context.Context, idToken string, serviceId int6
 	const op = "auth.AuthService.Signup"
 	log := a.log.With(slog.String("op", op), slog.Int64("service_id", serviceId), slog.Any("session", info))
 
-	if err := validator.New().Struct(info); err != nil {
-		errs := se.From(err.(validator.ValidationErrors))
-		log.Error("session info validation error", slog.String("validation_errors", errs.Error()))
-		return nil, errs
+	if err := se.Validate(ctx, info); err != nil {
+		log.Error("session info validation error", slog.String("validation_errors", err.Error()))
+		return nil, err
 	}
+	log.Info("passed validation")
 
 	token, err := tokens.ParseId(idToken)
 	if errors.Is(err, tokens.ErrTokenExpired) {
@@ -193,10 +186,9 @@ func (a *AuthService) Signin(ctx context.Context, idToken string, serviceId int6
 	const op = "auth.AuthService.Signin"
 	log := a.log.With(slog.String("op", op), slog.Int64("service_id", serviceId), slog.Any("session", info))
 
-	if err := validator.New().Struct(info); err != nil {
-		errs := se.From(err.(validator.ValidationErrors))
-		log.Error("session info validation error", slog.String("validation_errors", errs.Error()))
-		return nil, errs
+	if err := se.Validate(ctx, info); err != nil {
+		log.Error("session info validation error", slog.String("validation_errors", err.Error()))
+		return nil, err
 	}
 	log.Info("passed validation")
 
