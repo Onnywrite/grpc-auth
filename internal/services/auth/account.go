@@ -168,7 +168,7 @@ func (a *AuthService) Signup(ctx context.Context, idToken string, serviceId int6
 	}
 	if err != nil {
 		log.Error("could not parse id token", slog.String("error", err.Error()))
-		return nil, auth.ErrInternal
+		return nil, auth.ErrInvalidCredentials
 	}
 
 	user, err := a.db.UserById(ctx, token.Id)
@@ -206,7 +206,7 @@ func (a *AuthService) Signin(ctx context.Context, idToken string, serviceId int6
 	}
 	if err != nil {
 		log.Error("could not parse id token", slog.String("error", err.Error()))
-		return nil, auth.ErrInternal
+		return nil, auth.ErrInvalidCredentials
 	}
 
 	user, err := a.db.UserById(ctx, token.Id)
