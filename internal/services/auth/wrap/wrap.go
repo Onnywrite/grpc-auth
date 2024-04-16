@@ -241,10 +241,11 @@ func (w *Wrapper) SaveUser(ctx context.Context, user *models.User) (*models.Save
 	u, err := w.Storage.SaveUser(ctx, user)
 	if errors.Is(err, storage.ErrUniqueConstraint) {
 		u, err = w.UserByLogin(ctx, *user.Login)
-		if err != nil {
+		if errors.Is(err, auth.ErrUserDeleted) {
 			log.Error("user deleted", slog.Int64("id", u.Id), slog.String("error", err.Error()))
 			return nil, err
 		}
+		log.Error("user already exists", slog.Int64("id", u.Id), slog.String("error", err.Error()))
 		return nil, auth.ErrUserAlreadyRegistered
 	}
 	if err != nil {
@@ -308,7 +309,7 @@ type getUserFn func(ctx context.Context, key any) (*models.SavedUser, error)
 //	ErrUserDeleted
 //	ErrInternal in any unexpected situation
 func (w *Wrapper) user(ctx context.Context, get getUserFn, key any, keyType string) (*models.SavedUser, error) {
-	const op = "wrap.Wrapper.GetUserByLogin"
+	const op = "wrap.Wrapper.user"
 	log := w.log.With(slog.String("op", op), slog.Any(keyType, key))
 
 	saved, err := get(ctx, key)
