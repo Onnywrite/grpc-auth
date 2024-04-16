@@ -33,7 +33,7 @@ func (a authServer) Register(c context.Context, r *gen.InRequest) (*gen.IdTokens
 
 	resp, err := a.service.Register(c, user, info)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "error: %s", err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	return resp, nil
@@ -62,7 +62,7 @@ func (a authServer) Login(c context.Context, r *gen.InRequest) (*gen.IdTokens, e
 
 	resp, err := a.service.Login(c, user, info)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "error: %s", err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	return resp, nil

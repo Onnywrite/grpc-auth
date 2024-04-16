@@ -19,7 +19,7 @@ func (a authServer) Signup(c context.Context, r *gen.AppRequest) (*gen.AppTokens
 
 	resp, err := a.service.Signup(c, r.IdToken, r.ServiceId, info)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "error: %s", err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	return resp, nil
@@ -41,7 +41,7 @@ func (a authServer) Signin(c context.Context, r *gen.AppRequest) (*gen.AppTokens
 
 	resp, err := a.service.Signin(c, r.IdToken, r.ServiceId, info)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "error: %s", err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	return resp, nil
@@ -50,7 +50,7 @@ func (a authServer) Signin(c context.Context, r *gen.AppRequest) (*gen.AppTokens
 func (a authServer) Resignin(c context.Context, r *gen.RefreshToken) (*gen.AppTokens, error) {
 	resp, err := a.service.Resignin(c, r.Token)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "error: %s", err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	return resp, nil
@@ -59,7 +59,7 @@ func (a authServer) Resignin(c context.Context, r *gen.RefreshToken) (*gen.AppTo
 func (a authServer) Signout(c context.Context, r *gen.RefreshToken) (*emptypb.Empty, error) {
 	err := a.service.Signout(c, r.Token)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "error: %s", err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	return nil, nil
@@ -68,7 +68,7 @@ func (a authServer) Signout(c context.Context, r *gen.RefreshToken) (*emptypb.Em
 func (a authServer) Check(c context.Context, r *gen.AccessToken) (*emptypb.Empty, error) {
 	err := a.service.Check(c, r.Token)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "error: %s", err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	return nil, nil
