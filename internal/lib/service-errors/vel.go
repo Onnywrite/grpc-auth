@@ -24,7 +24,7 @@ var (
 	ErrPanicRecoveredGrpc = Error(CodeInternalRecoveredPanic, "internal error")
 )
 
-func From(ves validator.ValidationErrors) error {
+func From(ves validator.ValidationErrors) Errors {
 	errors := make([]string, 0, len(ves))
 
 	for _, e := range ves {
@@ -43,13 +43,13 @@ func (e Errors) Error() string {
 	return e.JSON()
 }
 
-func Error(code Code, errList ...string) error {
+func Error(code Code, errList ...string) Errors {
 	return ErrorSlice(code, errList)
 }
 
-func ErrorSlice(code Code, errors []string) error {
-	return error(Errors{
+func ErrorSlice(code Code, errors []string) Errors {
+	return Errors{
 		Code:   code,
 		Errors: errors,
-	})
+	}
 }
