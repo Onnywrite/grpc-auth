@@ -264,7 +264,7 @@ func (w *Wrapper) SaveUser(ctx context.Context, user *models.User) (*models.Save
 func (w *Wrapper) UserByLogin(ctx context.Context, login string) (*models.SavedUser, error) {
 	return w.user(ctx, func(ctx context.Context, key any) (*models.SavedUser, error) {
 		return w.Storage.UserByLogin(ctx, key.(string))
-	}, login)
+	}, login, "login")
 }
 
 // Throws;
@@ -275,7 +275,7 @@ func (w *Wrapper) UserByLogin(ctx context.Context, login string) (*models.SavedU
 func (w *Wrapper) UserByEmail(ctx context.Context, email string) (*models.SavedUser, error) {
 	return w.user(ctx, func(ctx context.Context, key any) (*models.SavedUser, error) {
 		return w.Storage.UserByEmail(ctx, key.(string))
-	}, email)
+	}, email, "email")
 }
 
 // Throws;
@@ -286,7 +286,7 @@ func (w *Wrapper) UserByEmail(ctx context.Context, email string) (*models.SavedU
 func (w *Wrapper) UserByPhone(ctx context.Context, phone string) (*models.SavedUser, error) {
 	return w.user(ctx, func(ctx context.Context, key any) (*models.SavedUser, error) {
 		return w.Storage.UserByLogin(ctx, key.(string))
-	}, phone)
+	}, phone, "phone")
 }
 
 // Throws;
@@ -297,7 +297,7 @@ func (w *Wrapper) UserByPhone(ctx context.Context, phone string) (*models.SavedU
 func (w *Wrapper) UserById(ctx context.Context, id int64) (*models.SavedUser, error) {
 	return w.user(ctx, func(ctx context.Context, key any) (*models.SavedUser, error) {
 		return w.Storage.UserById(ctx, key.(int64))
-	}, id)
+	}, id, "id")
 }
 
 type getUserFn func(ctx context.Context, key any) (*models.SavedUser, error)
@@ -307,9 +307,9 @@ type getUserFn func(ctx context.Context, key any) (*models.SavedUser, error)
 //	ErrInvalidCredentials if nothing found
 //	ErrUserDeleted
 //	ErrInternal in any unexpected situation
-func (w *Wrapper) user(ctx context.Context, get getUserFn, key any) (*models.SavedUser, error) {
+func (w *Wrapper) user(ctx context.Context, get getUserFn, key any, keyType string) (*models.SavedUser, error) {
 	const op = "wrap.Wrapper.GetUserByLogin"
-	log := w.log.With(slog.String("op", op), slog.Any("login", key))
+	log := w.log.With(slog.String("op", op), slog.Any(keyType, key))
 
 	saved, err := get(ctx, key)
 	if errors.Is(err, storage.ErrEmptyResult) {
