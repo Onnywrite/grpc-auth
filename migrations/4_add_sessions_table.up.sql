@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     session_uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_fk BIGINT NOT NULL,
     service_fk BIGINT NOT NULL,
-    ip CIDR NOT NULL,
+    ip CIDR,
     browser VARCHAR(32),
     os VARCHAR(16),
     at TIMESTAMP NOT NULL DEFAULT NOW(),
