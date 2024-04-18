@@ -11,10 +11,13 @@ import (
 )
 
 func (a authServer) Signup(c context.Context, r *gen.AppRequest) (*gen.AppTokens, error) {
-	info := models.SessionInfo{
-		Browser: r.Info.Browser,
-		Ip:      r.Info.Ip,
-		OS:      r.Info.Os,
+	info := models.SessionInfo{}
+	if r.Info != nil {
+		info = models.SessionInfo{
+			Browser: r.Info.Browser,
+			Ip:      r.Info.Ip,
+			OS:      r.Info.Os,
+		}
 	}
 
 	resp, err := a.service.Signup(c, r.IdToken, r.ServiceId, info)
