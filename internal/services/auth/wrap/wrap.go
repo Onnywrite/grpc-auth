@@ -163,11 +163,11 @@ func (w *Wrapper) SaveSignup(ctx context.Context, signup models.Signup) (*models
 			return nil, auth.ErrSignupBanned
 		}
 
-		return nil, auth.ErrUserAlreadyRegistered
+		return nil, auth.ErrAlreadySignedUp
 	}
 
 	if errors.Is(err, storage.ErrFKConstraint) {
-		log.Error("error service does not exist", slog.String("error", err.Error()))
+		log.Error("service does not exist", slog.String("error", err.Error()))
 		return nil, auth.ErrServiceNotExists
 	}
 
