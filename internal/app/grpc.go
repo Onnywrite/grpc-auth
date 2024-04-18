@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"runtime/debug"
 	"time"
 
 	se "github.com/Onnywrite/grpc-auth/internal/lib/service-errors"
@@ -28,7 +29,7 @@ func NewGRPC(logger *slog.Logger, service transfer.AuthService, port int, timeou
 
 	s := grpc.NewServer(grpc.ConnectionTimeout(timeout), grpc.ChainUnaryInterceptor(
 		recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(func(p interface{}) (err error) {
-			grpcLogger.Error("recovered from panic", slog.Any("panic", p))
+			grpcLogger.Error("recovered from panic", slog.Any("panic", p), slog.String("stack", string(debug.Stack())))
 
 			return status.Errorf(codes.Internal, se.ErrPanicRecoveredGrpc.Error())
 		})),
