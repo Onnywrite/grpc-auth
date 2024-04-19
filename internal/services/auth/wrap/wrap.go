@@ -149,7 +149,7 @@ func (w *Wrapper) SaveSignup(ctx context.Context, signup models.Signup) (*models
 
 	su, err := w.Storage.SaveSignup(ctx, signup)
 	if errors.Is(err, storage.ErrUniqueConstraint) {
-		su, err = w.Storage.SignupByServiceAndUser(ctx, signup.UserId, signup.ServiceId)
+		su, err = w.Storage.SignupByServiceAndUser(ctx, signup.ServiceId, signup.UserId)
 		if err != nil {
 			log.Error("error getting signup", slog.String("error", err.Error()))
 			return nil, auth.ErrInternal
