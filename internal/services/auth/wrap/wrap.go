@@ -129,7 +129,7 @@ func (w *Wrapper) session(ctx context.Context, get getSessionFn, keys ...any) (*
 
 	if session.IsTerminated() {
 		log.Error("session terminated")
-		return nil, auth.ErrSessionTerminated
+		return session, auth.ErrSessionTerminated
 	}
 
 	log.Info("got session", slog.String("uuid", session.UUID))
@@ -216,12 +216,12 @@ func (w *Wrapper) signup(ctx context.Context, get getSignupFn, keys ...any) (*mo
 
 	if su.IsDeleted() {
 		log.Error("signed out")
-		return nil, auth.ErrSignedOut
+		return su, auth.ErrSignedOut
 	}
 
 	if su.IsBanned() {
 		log.Error("signup banned")
-		return nil, auth.ErrSignupBanned
+		return su, auth.ErrSignupBanned
 	}
 
 	log.Info("got signup")
@@ -245,7 +245,7 @@ func (w *Wrapper) SaveUser(ctx context.Context, user *models.User) (*models.Save
 			log.Error("user deleted", slog.Int64("id", u.Id), slog.String("error", err.Error()))
 			return nil, err
 		}
-		log.Error("user already exists", slog.Int64("id", u.Id), slog.String("error", err.Error()))
+		log.Error("user already exists", slog.Int64("id", u.Id))
 		return nil, auth.ErrUserAlreadyRegistered
 	}
 	if err != nil {
@@ -286,7 +286,7 @@ func (w *Wrapper) UserByEmail(ctx context.Context, email string) (*models.SavedU
 //	ErrInternal in any unexpected situation
 func (w *Wrapper) UserByPhone(ctx context.Context, phone string) (*models.SavedUser, error) {
 	return w.user(ctx, func(ctx context.Context, key any) (*models.SavedUser, error) {
-		return w.Storage.UserByLogin(ctx, key.(string))
+		return w.Storage.UserByPhone(ctx, key.(string))
 	}, phone, "phone")
 }
 
