@@ -256,6 +256,7 @@ func (a *AuthService) openSession(ctx context.Context, signup *models.SavedSignu
 	}()
 
 	wg.Wait()
+	close(errorsCh)
 	for err := range errorsCh {
 		if err != nil {
 			if err2 := rollback(); err2 != nil {
