@@ -8,7 +8,7 @@ var (
 	ErrUserAlreadyRegistered = errors.New("user already exists")
 	ErrUserDeleted           = errors.New("user has unregistred")
 
-	ErrAlreadySignedUp = errors.New("you've already signed up and can log in")
+	ErrAlreadySignedUp = errors.New("you've already signed up and can sign in")
 	ErrSignedOut       = errors.New("you've signed out")
 	ErrSignupNotExists = errors.New("signup does not exist")
 	ErrSignupBanned    = errors.New("you've been banned")
