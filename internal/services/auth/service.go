@@ -15,9 +15,10 @@ type AuthService struct {
 
 func New(logger *slog.Logger, db wrap.Storage, tokenTTL, refreshTokenTTL, idTokenTTL time.Duration) *AuthService {
 	return &AuthService{
-		log:        logger,
-		db:         wrap.New(logger, db),
-		tokenTTL:   tokenTTL,
-		idTokenTTL: idTokenTTL,
+		log:             logger,
+		db:              wrap.New(logger, db),
+		tokenTTL:        tokenTTL,
+		idTokenTTL:      idTokenTTL,
+		refreshTokenTTL: refreshTokenTTL,
 	}
 }
