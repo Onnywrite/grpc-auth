@@ -51,7 +51,17 @@ func (pg *Pg) SessionByUuid(ctx context.Context, uuid string) (*models.SavedSess
 }
 
 func (pg *Pg) SessionByInfo(ctx context.Context, serviceId, userId int64, info models.SessionInfo) (*models.SavedSession, error) {
-	return pg.whereSession(ctx, "browser = $1 AND ip = $2 AND os = $3 AND service_fk = $4 AND user_fk = $5", info.Browser, info.Ip, info.OS, serviceId, userId)
+	ifNil := func(s *string) string {
+		if s == nil {
+			return "IS NULL"
+		}
+		return `= '` + *s + `'`
+	}
+	return pg.whereSession(ctx, `browser `+ifNil(info.Browser)+
+		` AND ip `+ifNil(info.Ip)+
+		` AND os `+ifNil(info.OS)+
+		` AND service_fk = $1 AND user_fk = $2`,
+		serviceId, userId)
 }
 
 func (pg *Pg) whereSession(ctx context.Context, where string, args ...any) (*models.SavedSession, error) {
@@ -64,7 +74,7 @@ func (pg *Pg) whereSession(ctx context.Context, where string, args ...any) (*mod
 
 	stmt, err := pg.db.PreparexContext(ctx, s)
 	if err != nil {
-		return nil, fmt.Errorf("preparex %s: %w", op, err)
+		return nil, fmt.Errorf("preparex sql: %s; %s: %w", s, op, err)
 	}
 
 	saved := &models.SavedSession{}

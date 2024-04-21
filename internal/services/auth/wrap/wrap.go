@@ -43,6 +43,7 @@ func New(logger *slog.Logger, db Storage) *Wrapper {
 // Throws:
 //
 //	ErrSignupNotExists
+//	ErrSessionAlreadyOpened
 //	ErrInternal
 func (w *Wrapper) SaveSession(ctx context.Context, session *models.Session) (*models.SavedSession, func() error, error) {
 	const op = "wrap.Wrapper.SaveSession"
@@ -70,6 +71,8 @@ func (w *Wrapper) SaveSession(ctx context.Context, session *models.Session) (*mo
 			log.Error("error getting session", slog.String("error", err.Error()))
 			return nil, nil, auth.ErrInternal
 		}
+
+		return nil, nil, auth.ErrSessionAlreadyOpened
 	}
 
 	if err != nil {
