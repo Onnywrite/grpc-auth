@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package sso;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = ".;gen";
+option csharp_namespace = "Onnywrite.SSO";
+
+message Profile {
+  optional string login = 1;
+  optional string email = 2;
+  optional string phone = 3;
+};
+
+message AccessToken { string token = 1; };
+
+message RefreshToken { string token = 1; };
+
+message SuperAccessToken { string token = 1; };
+
+message SessionInfo {
+  optional string browser = 1;
+  optional string os = 2;
+  optional string ip = 3;
+}
+
+message Sessions {
+  message Session {
+      sso.SessionInfo info = 1;
+      optional google.protobuf.Timestamp terminated_at = 2;
+  };
+  repeated Session sessions = 1;
+}
+
+message ProfileChangeRequest {
+  string any_access_token = 1;
+  sso.Profile new_profile = 2;
+}
