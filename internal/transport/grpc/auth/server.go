@@ -4,17 +4,17 @@ import (
 	"context"
 
 	"github.com/Onnywrite/grpc-auth/gen"
-	"github.com/Onnywrite/grpc-auth/internal/transfer"
+	"github.com/Onnywrite/grpc-auth/internal/transport"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type authServer struct {
 	gen.UnimplementedAuthServer
-	service transfer.AuthService
+	service transport.AuthService
 }
 
-func Register(server *grpc.Server, service transfer.AuthService) {
+func Register(server *grpc.Server, service transport.AuthService) {
 	gen.RegisterAuthServer(server, &authServer{service: service})
 }
 

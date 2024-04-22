@@ -9,8 +9,8 @@ import (
 	"time"
 
 	se "github.com/Onnywrite/grpc-auth/internal/lib/service-errors"
-	"github.com/Onnywrite/grpc-auth/internal/transfer"
-	grpcauth "github.com/Onnywrite/grpc-auth/internal/transfer/grpc/auth"
+	"github.com/Onnywrite/grpc-auth/internal/transport"
+	grpcauth "github.com/Onnywrite/grpc-auth/internal/transport/grpc/auth"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"google.golang.org/grpc"
@@ -24,7 +24,7 @@ type GRPCApp struct {
 	port   string
 }
 
-func NewGRPC(logger *slog.Logger, service transfer.AuthService, port int, timeout time.Duration) *GRPCApp {
+func NewGRPC(logger *slog.Logger, service transport.AuthService, port int, timeout time.Duration) *GRPCApp {
 	grpcLogger := logger.With(slog.String("op", "grpc"))
 
 	s := grpc.NewServer(grpc.ConnectionTimeout(timeout), grpc.ChainUnaryInterceptor(
