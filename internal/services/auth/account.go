@@ -69,7 +69,6 @@ func (a *AuthService) Register(ctx context.Context, user *models.User, info mode
 //
 //	Errors
 //	ErrInvalidCredentials
-//	ErrSignupNotExists
 //	ErrAlreadyLoggedIn
 //	ErrInternal
 func (a *AuthService) Login(ctx context.Context, user *models.User, info models.SessionInfo) (*gen.IdTokens, error) {
@@ -182,6 +181,16 @@ func (a *AuthService) Signup(ctx context.Context, idToken string, serviceId int6
 	return a.openSession(ctx, su, user, info)
 }
 
+// Throws:
+//
+//	Errors
+//	ErrTokenExpired
+//	ErrInvalidCredentials
+//	ErrUserDeleted
+//	ErrSignupNotExists
+//	ErrSignedOut
+//	ErrSignupBanned
+//	ErrInternal
 func (a *AuthService) Signin(ctx context.Context, idToken string, serviceId int64, info models.SessionInfo) (*gen.AppTokens, error) {
 	const op = "auth.AuthService.Signin"
 	log := a.log.With(slog.String("op", op), slog.Int64("service_id", serviceId), slog.Any("session", info))
@@ -328,6 +337,13 @@ func (a *AuthService) Signout(ctx context.Context, refresh string) error {
 	return nil
 }
 
+// Throws:
+//
+//	ErrTokenExpired
+//	ErrSessionNotExists
+//	ErrSessionTerminated
+//	ErrUserDeleted
+//	ErrInternal
 func (a *AuthService) Resignin(ctx context.Context, refresh string) (*gen.AppTokens, error) {
 	const op = "a.AuthService.Resignin"
 	log := a.log.With(slog.String("op", op))
@@ -373,6 +389,14 @@ func (a *AuthService) Resignin(ctx context.Context, refresh string) (*gen.AppTok
 	}, nil
 }
 
+// Throws:
+//
+//	ErrTokenExpired
+//	ErrUnauthorized
+//	ErrSignupNotExists
+//	ErrSignedOut
+//	ErrSignupBanned
+//	ErrInternal
 func (a *AuthService) Check(ctx context.Context, access string) error {
 	const op = "a.AuthService.Check"
 	log := a.log.With(slog.String("op", op))
@@ -382,9 +406,16 @@ func (a *AuthService) Check(ctx context.Context, access string) error {
 		return auth.ErrTokenExpired
 	}
 	if err != nil {
-		log.Error("could not process refresh token", slog.String("token", access), slog.String("error", err.Error()))
+		log.Error("could not process access token", slog.String("token", access), slog.String("error", err.Error()))
 		return auth.ErrUnauthorized
 	}
+
+	_, err = a.db.SignupByServiceAndUser(ctx, token.ServiceId, token.Id)
+	if err != nil {
+		return err
+	}
+	
+
 	log.Info("token checked", slog.Int64("user_id", token.Id))
 
 	return nil
