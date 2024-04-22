@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package auth;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "messages.proto";
+
+option go_package = ".;gen";
+option csharp_namespace = "Onnywrite.SSO.Auth";
+
+service Auth {
+  rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  rpc Register(Credentials) returns (google.protobuf.Empty);
+
+  rpc Login(Credentials) returns (SsoResponse);
+  
+  rpc Logout(sso.RefreshToken) returns (google.protobuf.Empty);
+  
+  rpc Relogin(sso.RefreshToken) returns (SsoResponse);
+
+  rpc Check(sso.SuperAccessToken) returns (google.protobuf.Empty);
+
+  rpc SetProfile(sso.ProfileChangeRequest) returns (google.protobuf.Empty);
+  
+  rpc GetProfile(sso.SuperAccessToken) returns (sso.Profile);
+
+  rpc GetApps(sso.SuperAccessToken) returns (Apps);
+  
+  rpc SetPassword(PasswordChangeRequest) returns (google.protobuf.Empty);
+
+  rpc Delete(DangerousRequest) returns (google.protobuf.Empty);
+
+  rpc Recover(Credentials) returns (google.protobuf.Empty);
+}
+
+message Credentials {
+  sso.Profile profile = 1;
+  string password = 2;
+  sso.SessionInfo info = 3;
+}
+
+message SsoResponse {
+  sso.SuperAccessToken access = 1;
+  sso.RefreshToken refresh = 2;
+  sso.Profile profile = 3;
+}
+
+message DangerousRequest {
+  sso.SuperAccessToken token = 1;
+  string password = 2;
+}
+
+message PasswordChangeRequest {
+  sso.SuperAccessToken token = 1;
+  string password = 2;
+}
+
+message Apps {
+  message App {
+    int64 service_id = 1;
+    google.protobuf.Timestamp registered_at = 2;
+    sso.Sessions sessions = 3;
+  }
+  repeated App apps = 1;
+}

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/Onnywrite/grpc-auth/internal/lib/pgxerr"
 	"github.com/Onnywrite/grpc-auth/internal/models"
 	storage "github.com/Onnywrite/grpc-auth/internal/storage/common"
@@ -16,22 +15,15 @@ import (
 func (pg *Pg) SaveSignup(ctx context.Context, signup models.Signup) (*models.SavedSignup, error) {
 	const op = "postgres.Pg.SaveSignup"
 
-	s, args, err := sq.Insert("signups").
-		Columns("user_fk", "service_fk").
-		Values(signup.UserId, signup.ServiceId).
-		Suffix("RETURNING signup_id, user_fk, service_fk, at, banned_at").
-		PlaceholderFormat(sq.Dollar).
-		ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("squirrel %s: %w", op, err)
-	}
-
-	stmt, err := pg.db.PreparexContext(ctx, s)
+	stmt, err := pg.db.PreparexContext(ctx, `
+		INSERT INTO signups (user_fk, service_fk)
+		VALUES ($1, $2)
+		RETURNING user_fk, service_fk, at, banned_at`)
 	if err != nil {
 		return nil, fmt.Errorf("preparex %s: %w", op, err)
 	}
 
-	row := stmt.QueryRowxContext(ctx, args...)
+	row := stmt.QueryRowxContext(ctx, signup.UserId, signup.ServiceId)
 	err = row.Err()
 	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
 		return nil, storage.ErrUniqueConstraint
@@ -50,18 +42,17 @@ func (pg *Pg) SaveSignup(ctx context.Context, signup models.Signup) (*models.Sav
 	return su, nil
 }
 
-func (pg *Pg) Signup(ctx context.Context, userId, serviceId int64) (*models.SavedSignup, error) {
+func (pg *Pg) SignupByServiceAndUser(ctx context.Context, serviceId, userId int64) (*models.SavedSignup, error) {
+	return pg.whereSignup(ctx, "service_fk = $1 AND user_fk = $2", serviceId, userId)
+}
+
+func (pg *Pg) whereSignup(ctx context.Context, where string, args ...any) (*models.SavedSignup, error) {
 	const op = "postgres.Pg.Signup"
 
-	s, args, err := sq.Select("signup_id", "user_fk", "service_fk", "at", "banned_at").
-		From("signups").
-		Where(sq.Eq{"user_fk": userId, "service_fk": serviceId}).
-		PlaceholderFormat(sq.Dollar).
-		ToSql()
-
-	if err != nil {
-		return nil, fmt.Errorf("squirrel %s: %w", op, err)
-	}
+	s := fmt.Sprintf(`
+	SELECT user_fk, service_fk, at, banned_at, deleted_at
+	FROM signups
+	WHERE %s`, where)
 
 	stmt, err := pg.db.PreparexContext(ctx, s)
 	if err != nil {

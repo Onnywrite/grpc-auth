@@ -8,7 +8,6 @@ type Signup struct {
 }
 
 type SavedSignup struct {
-	Id        int64      `db:"signup_id"`
 	UserId    int64      `db:"user_fk"`
 	ServiceId int64      `db:"service_fk"`
 	CreatedAt time.Time  `db:"at"`
@@ -18,4 +17,8 @@ type SavedSignup struct {
 
 func (su *SavedSignup) IsDeleted() bool {
 	return su.DeletedAt != nil
+}
+
+func (su *SavedSignup) IsBanned() bool {
+	return su.BannedAt != nil
 }

@@ -4,323 +4,419 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"time"
 
+	"github.com/Onnywrite/grpc-auth/gen"
+	se "github.com/Onnywrite/grpc-auth/internal/lib/service-errors"
 	"github.com/Onnywrite/grpc-auth/internal/lib/tokens"
-	"github.com/Onnywrite/grpc-auth/internal/lib/ve"
 	"github.com/Onnywrite/grpc-auth/internal/models"
+	auth "github.com/Onnywrite/grpc-auth/internal/services/auth/common"
 	storage "github.com/Onnywrite/grpc-auth/internal/storage/common"
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/crypto/bcrypt"
 )
 
-var (
-	ErrInvalidIP          = errors.New("invalid IP")
-	ErrInvalidCredentials = errors.New("invalid credentials")
-
-	ErrUserAlreadyRegistered = errors.New("user already exists")
-	ErrUserDeleted           = errors.New("user has unregistred")
-	ErrUserNotExists         = errors.New("user does not exist")
-
-	ErrAlreadySignedUp = errors.New("you've already signed up and can log in")
-	ErrSignupDeleted   = errors.New("you've signed out")
-	ErrSignupNotExists = errors.New("signup does not exist")
-
-	ErrAlreadyLoggedIn = errors.New("you've already logged in")
-
-	ErrServiceNotExists = errors.New("service does not exist")
-
-	ErrSessionNotExists         = errors.New("sesson does not exist")
-	ErrSessionAlreadyTerminated = errors.New("session has already been terminated")
-
-	ErrInternal     = errors.New("internal error")
-	ErrUnauthorized = errors.New("unauthorized")
-	ErrTokenExpired = errors.New("token has expired")
-)
+func identify(u *models.User) {
+	switch {
+	case u.Login != nil:
+		return
+	case u.Email != nil:
+		u.Login = u.Email
+		return
+	case u.Phone != nil:
+		u.Login = u.Phone
+		return
+	}
+}
 
 // Throws:
 //
-//	ValidationErrorsList
+//	Errors
 //	ErrUserAlreadyRegistered
 //	ErrUserDeleted
 //	ErrInternal
-func (a *AuthService) Register(ctx context.Context, optLogin, optEmail, optPhone *string, password string) error {
+func (a *AuthService) Register(ctx context.Context, user *models.User, info models.SessionInfo) (*gen.IdTokens, error) {
 	const op = "auth.AuthService.Register"
 	log := a.log.With(slog.String("op", op))
 
-	log.Debug("switching login type")
-	var identifier models.UserIdentifier
-	switch {
-	case optLogin != nil:
-		identifier = models.UserIdentifier{Key: "login", Value: *optLogin}
-	case optEmail != nil:
-		identifier = models.UserIdentifier{Key: "email", Value: *optEmail}
-	case optPhone != nil:
-		identifier = models.UserIdentifier{Key: "phone", Value: *optPhone}
-	}
-	log = log.With(slog.String("login_type", identifier.Key), slog.String("login", identifier.Value))
-	log.Info("switched login type")
+	identify(user)
 
-	user := &models.User{
-		Login:    identifier.Value,
-		Email:    optEmail,
-		Phone:    optPhone,
-		Password: password,
+	if err := se.Validate(ctx, user, info); err != nil {
+		log.Error("validation error", slog.String("validation_errors", err.Error()))
+		return nil, err
 	}
+	log.Debug("passed validation")
 
-	if err := validator.New().Struct(user); err != nil {
-		errs := ve.From(err.(validator.ValidationErrors))
-		log.Error("validation error", slog.String("validation_errors", errs.Error()))
-		return errs
-	}
-	log.Info("passed validation")
-
-	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashed, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Error("cannot hash password", slog.String("error", err.Error()))
-		return ErrInternal
+		return nil, auth.ErrInternal
 	}
 	user.Password = string(hashed)
 
 	saved, err := a.db.SaveUser(ctx, user)
-	if errors.Is(err, storage.ErrUniqueConstraint) {
-		return a.checkIfUserDeleted(ctx, identifier)
-	}
 	if err != nil {
-		log.Error("saving error", slog.String("error", err.Error()))
-		return ErrInternal
+		log.Error("saving user error", slog.String("error", err.Error()))
+		return nil, err
 	}
 	log.Info("user registred", slog.Int64("id", saved.Id))
 
-	return nil
+	return a.openIdConnect(saved)
 }
 
 // Throws:
 //
+//	Errors
 //	ErrInvalidCredentials
-//	ErrSignupDeleted
-//	ErrAlreadySignedUp
+//	ErrAlreadyLoggedIn
 //	ErrInternal
-func (a *AuthService) Signup(ctx context.Context, identifier models.UserIdentifier, serviceId int64) error {
-	const op = "auth.AuthService.Signup"
-	log := a.log.With(slog.String("op", op), slog.Any("identifier", identifier), slog.Int64("service_id", serviceId))
+func (a *AuthService) Login(ctx context.Context, user *models.User, info models.SessionInfo) (*gen.IdTokens, error) {
+	const op = "auth.AuthService.Login"
+	log := a.log.With(slog.String("op", op), slog.Any("session", info))
 
-	user, err := a.db.UserBy(ctx, identifier)
-	if errors.Is(err, storage.ErrEmptyResult) {
-		log.Error("invalid credentials", slog.String("error", err.Error()))
-		return ErrInvalidCredentials
+	if err := se.ValidateWith(ctx, func(v *validator.Validate, s any) error {
+		return v.StructExceptCtx(ctx, s, "Login")
+	}, user, info); err != nil {
+		log.Error("validation error", slog.String("validation_errors", err.Error()))
+		return nil, err
+	}
+	log.Debug("user passed validation")
+
+	u := &models.SavedUser{}
+	var err error
+	switch {
+	case user.Login != nil:
+		u, err = a.db.UserByLogin(ctx, *user.Login)
+	case user.Email != nil:
+		u, err = a.db.UserByEmail(ctx, *user.Email)
+	case user.Phone != nil:
+		u, err = a.db.UserByPhone(ctx, *user.Phone)
 	}
 	if err != nil {
-		log.Error("internal error", slog.String("error", err.Error()))
-		return ErrInternal
+		return nil, err
 	}
-	log = log.With(slog.Int64("user_id", user.Id))
+	log = log.With(slog.Int64("user_id", u.Id))
 	log.Info("user found")
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(identifier.Password))
+	err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(user.Password))
 	if err != nil {
 		log.Error("invalid password", slog.String("error", err.Error()))
-		return ErrInvalidCredentials
+		return nil, auth.ErrInvalidCredentials
 	}
 	log.Info("password and hash match")
 
-	signup := models.Signup{
-		UserId:    user.Id,
-		ServiceId: serviceId,
-	}
-	su, err := a.db.SaveSignup(ctx, signup)
-	switch {
-	case errors.Is(err, storage.ErrUniqueConstraint):
-		log.Info("checking if user's signed out")
-		su, _ = a.db.Signup(ctx, signup.UserId, signup.ServiceId)
-		if su.IsDeleted() {
-			log.Error("signup deleted")
-			return ErrSignupDeleted
-		}
-		log.Error("signup exists")
-		return ErrAlreadySignedUp
-	case err != nil:
-		log.Error("failed to save signup", slog.String("error", err.Error()))
-		return ErrInternal
-	}
-	log.Info("signed up", slog.Int64("signup_id", su.Id))
+	return a.openIdConnect(u)
+}
 
-	return nil
+func (a *AuthService) openIdConnect(user *models.SavedUser) (*gen.IdTokens, error) {
+	const op = "a.AuthService.openIdConnect"
+	log := a.log.With(slog.String("op", op))
+
+	tkn, err := tokens.Id(models.IdToken{
+		Id:  user.Id,
+		Iss: "sso.onnywrite.com",
+		Sub: "sso.onnywrite.com",
+		Exp: time.Now().Add(a.idTokenTTL).Unix(),
+	})
+	if err != nil {
+		log.Error("could not generate id token", slog.String("error", err.Error()))
+		return nil, auth.ErrInternal
+	}
+	log.Info("opened id connect successfully")
+
+	return &gen.IdTokens{
+		IdToken: tkn,
+		Profile: &gen.UserProfile{
+			Id:    user.Id,
+			Login: user.Login,
+			Email: user.Email,
+			Phone: user.Phone,
+		},
+	}, nil
 }
 
 // Throws:
 //
-//	ValidationErrorsList
+//	Errors
 //	ErrInvalidCredentials
-//	ErrSignupNotExists
-//	ErrAlreadyLoggedIn
+//	ErrServiceNotExists
+//	ErrSignedOut
+//	ErrAlreadySignedUp
 //	ErrInternal
-func (a *AuthService) Login(ctx context.Context, identifier models.UserIdentifier, sessionInfo models.SessionInfo, serviceId int64) (*models.Tokens, error) {
-	const op = "auth.AuthService.Login"
-	log := a.log.With(slog.String("op", op), slog.Any("identifier", identifier), slog.Any("session", sessionInfo))
+func (a *AuthService) Signup(ctx context.Context, idToken string, serviceId int64, info models.SessionInfo) (*gen.AppTokens, error) {
+	const op = "auth.AuthService.Signup"
+	log := a.log.With(slog.String("op", op), slog.Int64("service_id", serviceId), slog.Any("session", info))
 
-	if err := validator.New().Struct(sessionInfo); err != nil {
-		errs := ve.From(err.(validator.ValidationErrors))
-		log.Error("validation error", slog.String("validation_errors", errs.Error()))
-		return nil, errs
+	if err := se.Validate(ctx, info); err != nil {
+		log.Error("session info validation error", slog.String("validation_errors", err.Error()))
+		return nil, err
 	}
+	log.Info("passed validation")
 
-	user, err := a.db.UserBy(ctx, identifier)
-	if errors.Is(err, storage.ErrEmptyResult) {
-		log.Error("invalid credentials", slog.String("error", err.Error()))
-		return nil, ErrInvalidCredentials
+	token, err := tokens.ParseId(idToken)
+	if errors.Is(err, tokens.ErrTokenExpired) {
+		return nil, auth.ErrTokenExpired
 	}
 	if err != nil {
-		log.Error("internal error", slog.String("error", err.Error()))
-		return nil, ErrInternal
+		log.Error("could not parse id token", slog.String("error", err.Error()))
+		return nil, auth.ErrInvalidCredentials
 	}
-	log = log.With(slog.Int64("user_id", user.Id))
-	log.Info("user found")
 
-	su, err := a.db.Signup(ctx, user.Id, serviceId)
-	if err != nil || su.IsDeleted() {
-		log.Error("signup not found")
-		return nil, ErrSignupNotExists
-	}
-	log = log.With(slog.Int64("signup_id", su.Id))
-	log.Info("user signed up")
-
-	session := &models.Session{
-		UserId:    su.UserId,
-		ServiceId: su.ServiceId,
-		Info:      sessionInfo,
-	}
-	saved, err := a.db.SaveSession(ctx, session)
-	if errors.Is(err, storage.ErrUniqueConstraint) {
-		log.Error("could not save session", slog.String("error", err.Error()))
-		// TODO: not done
-		a.checkIfSessionTerminated(ctx, session)
-		return nil, ErrAlreadyLoggedIn
-	}
+	user, err := a.db.UserById(ctx, token.Id)
 	if err != nil {
-		log.Error("internal error", slog.String("error", err.Error()))
-		return nil, ErrInternal
+		return nil, err
 	}
-	log = log.With(slog.String("session_uuid", saved.UUID))
-	log.Info("saved session")
 
-	refresh, err := tokens.Refresh(&models.RefreshToken{
-		SessionUUID: saved.UUID,
-		Exp:         time.Now().Add(a.tokenTTL).Unix(),
+	su, err := a.db.SaveSignup(ctx, models.Signup{
+		UserId:    user.Id,
+		ServiceId: serviceId,
 	})
 	if err != nil {
-		log.Error("cannot create refresh token", slog.String("error", err.Error()))
-		return nil, ErrInternal
+		return nil, err
 	}
+
+	log.Info("signed up")
+
+	return a.openSession(ctx, su, user, info)
+}
+
+// Throws:
+//
+//	Errors
+//	ErrTokenExpired
+//	ErrInvalidCredentials
+//	ErrUserDeleted
+//	ErrSignupNotExists
+//	ErrSignedOut
+//	ErrSignupBanned
+//	ErrInternal
+func (a *AuthService) Signin(ctx context.Context, idToken string, serviceId int64, info models.SessionInfo) (*gen.AppTokens, error) {
+	const op = "auth.AuthService.Signin"
+	log := a.log.With(slog.String("op", op), slog.Int64("service_id", serviceId), slog.Any("session", info))
+
+	if err := se.Validate(ctx, info); err != nil {
+		log.Error("session info validation error", slog.String("validation_errors", err.Error()))
+		return nil, err
+	}
+	log.Info("passed validation")
+
+	token, err := tokens.ParseId(idToken)
+	if errors.Is(err, tokens.ErrTokenExpired) {
+		return nil, auth.ErrTokenExpired
+	}
+	if err != nil {
+		log.Error("could not parse id token", slog.String("error", err.Error()))
+		return nil, auth.ErrInvalidCredentials
+	}
+
+	user, err := a.db.UserById(ctx, token.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	su, err := a.db.SignupByServiceAndUser(ctx, serviceId, token.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info("openning session")
+	return a.openSession(ctx, su, user, info)
+}
+
+func (a *AuthService) openSession(ctx context.Context, signup *models.SavedSignup, user *models.SavedUser, info models.SessionInfo) (*gen.AppTokens, error) {
+	const op = "a.AuthService.openSession"
+	log := a.log.With(slog.String("op", op), slog.Int64("service_id", signup.ServiceId), slog.Int64("user_id", signup.UserId))
+
+	session, rollback, err := a.db.SaveSession(ctx, &models.Session{
+		ServiceId: signup.ServiceId,
+		UserId:    signup.UserId,
+		Info:      info,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var refresh, access string
+	errorsCh := make(chan error, 5)
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		var err33 error
+		access, err33 = a.updateAccessToken(ctx, user, signup.ServiceId)
+		errorsCh <- err33
+	}()
+
+	go func() {
+		defer wg.Done()
+		var err33 error
+		refresh, err33 = tokens.Refresh(&models.RefreshToken{
+			SessionUUID: session.UUID,
+			Exp:         time.Now().Add(a.refreshTokenTTL).Unix(),
+		})
+		if err33 != nil {
+			log.Error("could not generate refresh token", slog.String("error", err.Error()))
+			errorsCh <- auth.ErrInternal
+			return
+		}
+		errorsCh <- nil
+	}()
+
+	wg.Wait()
+	close(errorsCh)
+	for err := range errorsCh {
+		if err != nil {
+			if err2 := rollback(); err2 != nil {
+				log.Error("cannot rollback session saving", slog.String("error", err.Error()))
+			}
+			return nil, err
+		}
+	}
+
+	return &gen.AppTokens{
+		Access:  access,
+		Refresh: refresh,
+		Profile: &gen.UserProfile{
+			Id:    user.Id,
+			Login: user.Login,
+			Email: user.Email,
+			Phone: user.Phone,
+		},
+	}, nil
+}
+
+func (a *AuthService) updateAccessToken(ctx context.Context, user *models.SavedUser, serviceId int64) (string, error) {
+	const op = "a.AuthService.updateAccessToken"
+	log := a.log.With(slog.String("op", op))
+
+	// TODO: get roles
 
 	access, err := tokens.Access(&models.AccessToken{
 		Id:        user.Id,
 		Login:     user.Login,
 		ServiceId: serviceId,
 		Roles:     []string{},
-		Exp:       time.Now().Add(a.refreshTokenTTL).Unix(),
+		Exp:       time.Now().Add(a.tokenTTL).Unix(),
 	})
 	if err != nil {
-		log.Error("cannot create refresh token", slog.String("error", err.Error()))
-		return nil, ErrInternal
+		log.Error("could not generate access token", slog.String("error", err.Error()))
+		return "", auth.ErrInternal
 	}
 
-	log.Info("logged in successfully")
-
-	return &models.Tokens{
-		Refresh: refresh,
-		Access:  access,
-	}, nil
+	return access, nil
 }
 
-func (a *AuthService) Logout(ctx context.Context, refresh string) error {
-	const op = "auth.AuthService.Logout"
+func (a *AuthService) Signout(ctx context.Context, refresh string) error {
+	const op = "auth.AuthService.Signout"
 	log := a.log.With(slog.String("op", op))
 
 	token, err := tokens.ParseRefresh(refresh)
 	if errors.Is(err, tokens.ErrTokenExpired) {
-		return ErrTokenExpired
+		return auth.ErrTokenExpired
 	}
 	if err != nil {
 		log.Error("could not process refresh token", slog.String("token", refresh), slog.String("error", err.Error()))
-		return ErrUnauthorized
+		return auth.ErrUnauthorized
 	}
 	log = log.With(slog.String("session_uuid", token.SessionUUID))
 	log.Info("token is processed")
 
 	err = a.db.TerminateSession(ctx, token.SessionUUID)
 	if errors.Is(err, storage.ErrEmptyResult) {
-		log.Error("checking if session terminated", slog.String("error", err.Error()))
-		return a.checkIfSessionTerminatedById(ctx, token.SessionUUID)
+		log.Error("session does not exist or already terminated", slog.String("error", err.Error()))
+		return auth.ErrSessionTerminated
 	}
 	if err != nil {
 		log.Error("could not terminate session", slog.String("error", err.Error()))
 		return err
 	}
-	log.Info("logged out successfully")
+	log.Info("signed out successfully")
 
 	return nil
 }
 
-func (a *AuthService) checkIfSessionTerminated(ctx context.Context, s *models.Session) error {
-	const op = "auth.AuthService.checkIfSessionTerminated"
-	log := a.log.With("op", op)
+// Throws:
+//
+//	ErrTokenExpired
+//	ErrSessionNotExists
+//	ErrSessionTerminated
+//	ErrUserDeleted
+//	ErrInternal
+func (a *AuthService) Resignin(ctx context.Context, refresh string) (*gen.AppTokens, error) {
+	const op = "a.AuthService.Resignin"
+	log := a.log.With(slog.String("op", op))
 
-	session, err := a.db.Session(ctx, s)
-	if errors.Is(err, storage.ErrEmptyResult) {
-		log.Error("session has been deleted", slog.String("error", err.Error()))
-		return ErrSessionNotExists
+	token, err := tokens.ParseRefresh(refresh)
+	if errors.Is(err, tokens.ErrTokenExpired) {
+		return nil, auth.ErrTokenExpired
 	}
 	if err != nil {
-		log.Error("internal error", slog.String("error", err.Error()))
-		return ErrInternal
+		log.Error("could not process refresh token", slog.String("token", refresh), slog.String("error", err.Error()))
+		return nil, auth.ErrUnauthorized
 	}
-	if session.IsTerminated() {
-		log.Error("session already terminated")
-		return ErrSessionAlreadyTerminated
-	}
+	log = log.With(slog.String("session_uuid", token.SessionUUID))
+	log.Info("token is processed")
 
-	return nil
+	session, err := a.db.SessionByUuid(ctx, token.SessionUUID)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("got session")
+
+	user, err := a.db.UserById(ctx, session.UserId)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("got user")
+
+	access, err := a.updateAccessToken(ctx, user, session.ServiceId)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("resigned in")
+
+	return &gen.AppTokens{
+		Access:  access,
+		Refresh: refresh,
+		Profile: &gen.UserProfile{
+			Id:    user.Id,
+			Login: user.Login,
+			Email: user.Email,
+			Phone: user.Phone,
+		},
+	}, nil
 }
 
-func (a *AuthService) checkIfSessionTerminatedById(ctx context.Context, uuid string) error {
-	const op = "auth.AuthService.checkIfSessionTerminated"
-	log := a.log.With("op", op)
+// Throws:
+//
+//	ErrTokenExpired
+//	ErrUnauthorized
+//	ErrSignupNotExists
+//	ErrSignedOut
+//	ErrSignupBanned
+//	ErrInternal
+func (a *AuthService) Check(ctx context.Context, access string) error {
+	const op = "a.AuthService.Check"
+	log := a.log.With(slog.String("op", op))
 
-	session, err := a.db.SessionById(ctx, uuid)
-	if errors.Is(err, storage.ErrEmptyResult) {
-		log.Error("session has been deleted", slog.String("error", err.Error()))
-		return ErrSessionNotExists
+	token, err := tokens.ParseAccess(access)
+	if errors.Is(err, tokens.ErrTokenExpired) {
+		return auth.ErrTokenExpired
 	}
 	if err != nil {
-		log.Error("internal error", slog.String("error", err.Error()))
-		return ErrInternal
+		log.Error("could not process access token", slog.String("token", access), slog.String("error", err.Error()))
+		return auth.ErrUnauthorized
 	}
-	if session.IsTerminated() {
-		log.Error("session already terminated")
-		return ErrSessionAlreadyTerminated
+
+	_, err = a.db.SignupByServiceAndUser(ctx, token.ServiceId, token.Id)
+	if err != nil {
+		return err
 	}
+	
+
+	log.Info("token checked", slog.Int64("user_id", token.Id))
 
 	return nil
-}
-
-func (a *AuthService) checkIfUserDeleted(ctx context.Context, identifier models.UserIdentifier) error {
-	const op = "auth.AuthService.checkIfUserDeleted"
-	log := a.log.With(slog.String("op", op), slog.Any("identifier", identifier))
-
-	saved, err := a.db.UserBy(ctx, identifier)
-	if errors.Is(err, storage.ErrEmptyResult) {
-		log.Error("user does not exist", slog.String("error", err.Error()))
-		return ErrUserNotExists
-	}
-	if err != nil {
-		log.Error("internal error", slog.String("error", err.Error()))
-		return ErrInternal
-	}
-
-	if saved.IsDeleted() {
-		return ErrUserDeleted
-	}
-
-	return ErrUserAlreadyRegistered
 }
