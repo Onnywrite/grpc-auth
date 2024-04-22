@@ -3,6 +3,7 @@ package tokens
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/Onnywrite/grpc-auth/internal/models"
@@ -12,7 +13,6 @@ import (
 func Access(token *models.AccessToken) (string, error) {
 	return New(jwt.MapClaims{
 		"id":         token.Id,
-		"login":      token.Login,
 		"service_id": token.ServiceId,
 		"roles":      token.Roles,
 		"exp":        token.Exp,
@@ -20,7 +20,8 @@ func Access(token *models.AccessToken) (string, error) {
 }
 
 func ParseAccess(tkn string) (*models.AccessToken, error) {
-	token, err := jwt.Parse(tkn, func(token *jwt.Token) (interface{}, error) {
+	parser := jwt.Parser{SkipClaimsValidation: true}
+	token, err := parser.Parse(tkn, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, ErrUnexpectedSigningMethod
 		}
@@ -33,34 +34,45 @@ func ParseAccess(tkn string) (*models.AccessToken, error) {
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		exp := claims["exp"].(float64)
+		exp, ok := claims["exp"].(float64)
+		if !ok {
+			return nil, ErrInvalidData
+		}
+
+		for k, v := range claims {
+			fmt.Println(k, v, reflect.TypeOf(v).Name())
+		}
 
 		id, ok := claims["id"].(float64)
 		if !ok {
-			return nil, fmt.Errorf("could not convert 'id' to int64")
-		}
-		login, ok := claims["login"].(string)
-		if !ok {
-			return nil, fmt.Errorf("could not convert 'login' to string")
+			return nil, ErrInvalidData
 		}
 		serviceId, ok := claims["service_id"].(float64)
 		if !ok {
-			return nil, fmt.Errorf("could not convert 'service_id' to int64")
+			return nil, ErrInvalidData
 		}
-		roles, ok := claims["roles"].([]string)
+		rolesInterface, ok := claims["roles"].([]interface{})
 		if !ok {
-			return nil, fmt.Errorf("could not convert 'roles' to []string")
+			return nil, ErrInvalidData
+		}
+
+		roles := make([]string, 0, len(rolesInterface))
+		for _, role := range rolesInterface {
+			if roleStr, ok := role.(string); !ok {
+				return nil, ErrInvalidData
+			} else {
+				roles = append(roles, roleStr)
+			}
 		}
 
 		token := &models.AccessToken{
 			Id:        int64(id),
-			Login:     login,
 			ServiceId: int64(serviceId),
 			Roles:     roles,
 			Exp:       int64(exp),
 		}
 
-		if float64(time.Now().Unix()) > exp {
+		if time.Now().Unix() > int64(exp) {
 			return token, ErrTokenExpired
 		}
 		return token, nil

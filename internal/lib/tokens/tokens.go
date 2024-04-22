@@ -15,8 +15,7 @@ var (
 )
 
 const (
-	Env   = "TOKEN_SECRET"
-	IdEnv = "ID_TOKEN_SECRET"
+	Env = "TOKEN_SECRET"
 )
 
 func New(claims jwt.MapClaims) (string, error) {

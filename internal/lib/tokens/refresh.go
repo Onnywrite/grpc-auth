@@ -11,12 +11,15 @@ import (
 func Refresh(token *models.RefreshToken) (string, error) {
 	return New(jwt.MapClaims{
 		"session_uuid": token.SessionUUID,
-		"exp":          token.Exp,
+		// TODO: rotation
+		"rotation": 0,
+		"exp":      token.Exp,
 	})
 }
 
 func ParseRefresh(tkn string) (*models.RefreshToken, error) {
-	token, err := jwt.Parse(tkn, func(token *jwt.Token) (interface{}, error) {
+	parser := jwt.Parser{SkipClaimsValidation: true}
+	token, err := parser.Parse(tkn, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, ErrUnexpectedSigningMethod
 		}
@@ -29,15 +32,23 @@ func ParseRefresh(tkn string) (*models.RefreshToken, error) {
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		exp := claims["exp"].(float64)
+		exp, ok := claims["exp"].(float64)
+		if !ok {
+			return nil, ErrInvalidData
+		}
 
 		sessionUUID, ok := claims["session_uuid"].(string)
+		if !ok {
+			return nil, ErrInvalidData
+		}
+		rotation, ok := claims["rotation"].(float64)
 		if !ok {
 			return nil, ErrInvalidData
 		}
 
 		token := &models.RefreshToken{
 			SessionUUID: sessionUUID,
+			Rotation:    int32(rotation),
 			Exp:         int64(exp),
 		}
 

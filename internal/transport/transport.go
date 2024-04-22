@@ -4,20 +4,31 @@ import (
 	"context"
 
 	"github.com/Onnywrite/grpc-auth/gen"
-	"github.com/Onnywrite/grpc-auth/internal/models"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type AuthService interface {
-	Register(ctx context.Context, user *models.User, info models.SessionInfo) (*gen.IdTokens, error)
-	Login(ctx context.Context, user *models.User, info models.SessionInfo) (*gen.IdTokens, error)
-	// Recover(ctx context.Context, user *models.User, info models.SessionInfo) (*gen.IdTokens, error)
-	// Logout(ctx context.Context, idToken string) error
+	Register(context.Context, *gen.Credentials) (*emptypb.Empty, error)
+	Login(context.Context, *gen.Credentials) (*gen.SsoResponse, error)
+	Logout(context.Context, *gen.RefreshToken) (*emptypb.Empty, error)
+	Relogin(context.Context, *gen.RefreshToken) (*gen.SsoResponse, error)
+	Check(context.Context, *gen.SuperAccessToken) (*emptypb.Empty, error)
+	SetProfile(context.Context, *gen.ProfileChangeRequest) (*emptypb.Empty, error)
+	GetProfile(context.Context, *gen.SuperAccessToken) (*gen.Profile, error)
+	GetApps(context.Context, *gen.SuperAccessToken) (*gen.Apps, error)
+	SetPassword(context.Context, *gen.PasswordChangeRequest) (*emptypb.Empty, error)
+	Delete(context.Context, *gen.DangerousRequest) (*emptypb.Empty, error)
+	Recover(context.Context, *gen.Credentials) (*emptypb.Empty, error)
+}
 
-	Signup(ctx context.Context, idToken string, serviceId int64, info models.SessionInfo) (*gen.AppTokens, error)
-	// RecoverSignup(ctx context.Context, idToken string, serviceId int64, info models.SessionInfo) (*gen.AppTokens, error)
-	Signin(ctx context.Context, idToken string, serviceId int64, info models.SessionInfo) (*gen.AppTokens, error)
-	Signout(ctx context.Context, refresh string) error
-	Resignin(ctx context.Context, refresh string) (*gen.AppTokens, error)
-	Check(ctx context.Context, access string) error
-	// Unsign(ctx context.Context, access string) error
+type AppService interface {
+	Login(context.Context, *gen.AppRequest) (*gen.AppResponse, error)
+	Logout(context.Context, *gen.RefreshToken) (*emptypb.Empty, error)
+	Relogin(context.Context, *gen.RefreshToken) (*gen.AppResponse, error)
+	Check(context.Context, *gen.AccessToken) (*emptypb.Empty, error)
+	SetProfile(context.Context, *gen.ProfileChangeRequest) (*emptypb.Empty, error)
+	GetProfile(context.Context, *gen.AccessToken) (*gen.Profile, error)
+	GetSessions(context.Context, *gen.AccessToken) (*gen.Sessions, error)
+	Delete(context.Context, *gen.AccessToken) (*emptypb.Empty, error)
+	Recover(context.Context, *gen.AppRequest) (*emptypb.Empty, error)
 }
