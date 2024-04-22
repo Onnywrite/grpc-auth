@@ -15,7 +15,7 @@ type appServer struct {
 }
 
 func Register(server *grpc.Server, service transport.AppService) {
-	gen.RegisterAuthServer(server, &appServer{service: service})
+	gen.RegisterAppServer(server, &appServer{service: service})
 }
 
 func (appServer) Ping(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
