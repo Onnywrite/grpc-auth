@@ -9,7 +9,7 @@ type FieldError struct {
 }
 
 type ValidationError struct {
-	Basic
+	*Basic
 	Fields []FieldError
 }
 

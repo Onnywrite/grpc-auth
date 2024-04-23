@@ -18,8 +18,8 @@ type Basic struct {
 	mu      *sync.Mutex
 }
 
-func New(code string, errs ...string) Basic {
-	return Basic{
+func New(code string, errs ...string) *Basic {
+	return &Basic{
 		Service: CurrentService,
 		Code:    code,
 		Errors:  errs,
@@ -43,19 +43,21 @@ func (e *Basic) unlock() {
 	e.mu.Unlock()
 }
 
-func (e *Basic) Add(err ...string) {
+func (e *Basic) Add(err ...string) *Basic {
 	e.lock()
 	e.addWithoutLock(err...)
 	e.unlock()
+	return e
 }
 func (e *Basic) addWithoutLock(err ...string) {
 	e.Errors = append(e.Errors, err...)
 }
 
-func (e *Basic) SetCode(code string) {
+func (e *Basic) SetCode(code string) *Basic {
 	e.lock()
 	e.Code = code
 	e.unlock()
+	return e
 }
 
 func Unmarshal(body []byte, errTypes map[string]interface{}) error {
