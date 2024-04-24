@@ -1,9 +1,11 @@
 package storage_common
 
-import "errors"
+import (
+	"github.com/Onnywrite/grpc-auth/internal/lib/ero"
+)
 
 var (
-	ErrUniqueConstraint = errors.New("object already exists")
-	ErrEmptyResult      = errors.New("got empty result")
-	ErrFKConstraint     = errors.New("no row in referenced table")
+	ErrUniqueConstraint = ero.NewStorage("object already exists")
+	ErrEmptyResult      = ero.NewStorage("got empty result")
+	ErrFKConstraint     = ero.NewStorage("no such row in referenced table")
 )
