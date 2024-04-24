@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"sync"
 )
 
@@ -27,7 +28,7 @@ func New(code string, errs ...string) *Basic {
 	}
 }
 
-func (e Basic) Error() string {
+func (e *Basic) Error() string {
 	b, err := json.Marshal(e)
 	if err != nil {
 		panic(err)
@@ -58,6 +59,10 @@ func (e *Basic) SetCode(code string) *Basic {
 	e.Code = code
 	e.unlock()
 	return e
+}
+
+func (e *Basic) Compare(e2 *Basic) bool {
+	return e.Code == e2.Code && slices.Equal(e.Errors, e2.Errors)
 }
 
 func Unmarshal(body []byte, errTypes map[string]interface{}) error {
