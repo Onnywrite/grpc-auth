@@ -2,14 +2,9 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 
-	"github.com/Onnywrite/grpc-auth/internal/lib/pgxerr"
 	"github.com/Onnywrite/grpc-auth/internal/models"
-	storage "github.com/Onnywrite/grpc-auth/internal/storage/common"
-	"github.com/jackc/pgerrcode"
 )
 
 func (pg *Pg) SaveSignup(ctx context.Context, signup models.Signup) (*models.SavedSignup, error) {
@@ -20,24 +15,19 @@ func (pg *Pg) SaveSignup(ctx context.Context, signup models.Signup) (*models.Sav
 		VALUES ($1, $2)
 		RETURNING user_fk, service_fk, at, banned_at`)
 	if err != nil {
-		return nil, fmt.Errorf("preparex %s: %w", op, err)
+		return nil, preperr(err, op)
 	}
 
 	row := stmt.QueryRowxContext(ctx, signup.UserId, signup.ServiceId)
-	err = row.Err()
-	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
-		return nil, storage.ErrUniqueConstraint
-	}
-	if pgxerr.Is(err, pgerrcode.ForeignKeyViolation) {
-		return nil, storage.ErrFKConstraint
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+	if err = row.Err(); err != nil {
+		return nil, pgerr(err, op)
 	}
 
 	su := &models.SavedSignup{}
-	row.StructScan(su)
+	err = row.StructScan(su)
+	if err != nil {
+		return nil, scanerr(err, op)
+	}
 
 	return su, nil
 }
@@ -49,24 +39,18 @@ func (pg *Pg) SignupByServiceAndUser(ctx context.Context, serviceId, userId int6
 func (pg *Pg) whereSignup(ctx context.Context, where string, args ...any) (*models.SavedSignup, error) {
 	const op = "postgres.Pg.Signup"
 
-	s := fmt.Sprintf(`
-	SELECT user_fk, service_fk, at, banned_at, deleted_at
-	FROM signups
-	WHERE %s`, where)
-
-	stmt, err := pg.db.PreparexContext(ctx, s)
+	stmt, err := pg.db.PreparexContext(ctx, fmt.Sprintf(`
+		SELECT user_fk, service_fk, at, banned_at, deleted_at
+		FROM signups
+		WHERE %s`, where))
 	if err != nil {
-		return nil, fmt.Errorf("preparex %s: %w", op, err)
+		return nil, preperr(err, op)
 	}
 
 	su := &models.SavedSignup{}
 	err = stmt.GetContext(ctx, su, args...)
-
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, storage.ErrEmptyResult
-		}
-		return nil, fmt.Errorf("%s: %w", op, err)
+		return nil, pgerr(err, op)
 	}
 
 	return su, nil

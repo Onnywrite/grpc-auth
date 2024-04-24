@@ -2,14 +2,9 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 
-	"github.com/Onnywrite/grpc-auth/internal/lib/pgxerr"
 	"github.com/Onnywrite/grpc-auth/internal/models"
-	storage "github.com/Onnywrite/grpc-auth/internal/storage/common"
-	"github.com/jackc/pgerrcode"
 )
 
 func (pg *Pg) SaveUser(ctx context.Context, user *models.User) (*models.SavedUser, error) {
@@ -18,24 +13,20 @@ func (pg *Pg) SaveUser(ctx context.Context, user *models.User) (*models.SavedUse
 	stmt, err := pg.db.PreparexContext(ctx, `
 		INSERT INTO users (login, email, phone, password)
 		VALUES ($1, $2, $3, $4)
-		RETURNING user_id, login, email, phone, password`)
+		RETURNING user_id, login, email, phone, password, deleted_at`)
 	if err != nil {
-		return nil, fmt.Errorf("preparex %s: %w", op, err)
+		return nil, preperr(err, op)
 	}
 
 	row := stmt.QueryRowxContext(ctx, user.Login, user.Email, user.Phone, user.Password)
-	err = row.Err()
-	if pgxerr.Is(err, pgerrcode.UniqueViolation) {
-		return nil, storage.ErrUniqueConstraint
-	}
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+	if err = row.Err(); err != nil {
+		return nil, pgerr(err, op)
 	}
 
 	u := &models.SavedUser{}
 	err = row.StructScan(u)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+		return nil, scanerr(err, op)
 	}
 
 	return u, nil
@@ -60,24 +51,18 @@ func (pg *Pg) UserByPhone(ctx context.Context, phone string) (*models.SavedUser,
 func (pg *Pg) whereUser(ctx context.Context, where string, args ...any) (*models.SavedUser, error) {
 	const op = "postgres.Pg.userBy"
 
-	s := fmt.Sprintf(`
-	SELECT user_id, login, email, phone, password, deleted_at
-	FROM users
-	WHERE %s`, where)
-
-	stmt, err := pg.db.PreparexContext(ctx, s)
+	stmt, err := pg.db.PreparexContext(ctx, fmt.Sprintf(`
+		SELECT user_id, login, email, phone, password, deleted_at
+		FROM users
+		WHERE %s`, where))
 	if err != nil {
-		return nil, fmt.Errorf("preparex %s: %w", op, err)
+		return nil, preperr(err, op)
 	}
 
 	u := &models.SavedUser{}
 	err = stmt.GetContext(ctx, u, args...)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, storage.ErrEmptyResult
-	}
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+		return nil, pgerr(err, op)
 	}
 
 	return u, nil
