@@ -9,18 +9,13 @@ type Session struct {
 }
 
 type SavedSession struct {
-	UUID         string     `db:"session_uuid"`
-	ServiceId    int64      `db:"service_fk"`
-	UserId       int64      `db:"user_fk"`
-	Browser      *string    `db:"browser"`
-	IP           *string    `db:"ip"`
-	OS           *string    `db:"os"`
-	CreatedAt    time.Time  `db:"at"`
-	TerminatedAt *time.Time `db:"terminated_at"`
-}
-
-func (s *SavedSession) IsTerminated() bool {
-	return s.TerminatedAt != nil
+	UUID      string    `db:"session_uuid"`
+	ServiceId int64     `db:"service_fk"`
+	UserId    int64     `db:"user_fk"`
+	Browser   *string   `db:"browser"`
+	IP        *string   `db:"ip"`
+	OS        *string   `db:"os"`
+	CreatedAt time.Time `db:"at"`
 }
 
 type SessionInfo struct {

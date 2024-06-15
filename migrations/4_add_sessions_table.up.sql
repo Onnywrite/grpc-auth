@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS sessions (
     browser VARCHAR(32),
     os VARCHAR(16),
     at TIMESTAMP NOT NULL DEFAULT NOW(),
-    terminated_at TIMESTAMP DEFAULT NULL,
     UNIQUE NULLS NOT DISTINCT(user_fk, service_fk, ip, browser, os),
     FOREIGN KEY (user_fk, service_fk) REFERENCES signups(user_fk, service_fk) ON DELETE CASCADE
 );
