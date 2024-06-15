@@ -35,14 +35,14 @@ func (pg *Pg) Disconnect() error {
 }
 
 var (
-	sqlerrToErr = map[string]*ero.StorageError{
+	sqlerrToErr = map[string]string{
 		pgerrcode.UniqueViolation:     storage.ErrUniqueConstraint,
 		pgerrcode.ForeignKeyViolation: storage.ErrFKConstraint,
 		sql.ErrNoRows.Error():         storage.ErrEmptyResult,
 	}
 )
 
-func pgerr(anyerr error, op string) error {
+func queryError(anyerr error, op string) ero.Error {
 	pgErr := &pgconn.PgError{}
 	var strerr string
 	if errors.As(anyerr, &pgErr) {
@@ -51,18 +51,17 @@ func pgerr(anyerr error, op string) error {
 		strerr = anyerr.Error()
 	}
 
-	if err, ok := sqlerrToErr[strerr]; ok {
-		err.WithMethod(op)
-		return err
+	if errStr, ok := sqlerrToErr[strerr]; ok {
+		return ero.NewClient(errStr)
 	}
 
-	return ero.NewStorage(anyerr.Error()).WithMethod(op)
+	return ero.NewServer(op, anyerr.Error())
 }
 
-func preperr(anyerr error, op string) error {
-	return ero.NewStorage(anyerr.Error()).WithMethod(op).SetCode(ero.CodeStorageInternal)
+func preparingError(anyerr error, op string) ero.Error {
+	return ero.NewInternal(op, anyerr.Error())
 }
 
-func scanerr(anyerr error, op string) error {
-	return ero.NewStorage(anyerr.Error()).WithMethod(op).SetCode(ero.CodeStorageInternal)
+func scanningError(anyerr error, op string) ero.Error {
+	return ero.NewInternal(op, anyerr.Error())
 }

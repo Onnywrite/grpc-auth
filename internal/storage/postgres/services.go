@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Onnywrite/grpc-auth/internal/lib/ero"
 	"github.com/Onnywrite/grpc-auth/internal/models"
 )
 
-func (pg *Pg) SaveService(ctx context.Context, service *models.Service) (*models.SavedService, error) {
+func (pg *Pg) SaveService(ctx context.Context, service *models.Service) (*models.SavedService, ero.Error) {
 	const op = "postgres.Pg.SaveService"
 
 	stmt, err := pg.db.PreparexContext(ctx, `
@@ -15,28 +16,28 @@ func (pg *Pg) SaveService(ctx context.Context, service *models.Service) (*models
 		VALUES ($1, $2)
 		RETURNING service_id, owner_fk, name, deleted_at`)
 	if err != nil {
-		return nil, preperr(err, op)
+		return nil, preparingError(err, op)
 	}
 
 	row := stmt.QueryRowxContext(ctx, service.Name, service.OwnerId)
 	if err = row.Err(); err != nil {
-		return nil, pgerr(err, op)
+		return nil, queryError(err, op)
 	}
 
 	u := &models.SavedService{}
 	err = row.StructScan(u)
 	if err != nil {
-		return nil, scanerr(err, op)
+		return nil, scanningError(err, op)
 	}
 
 	return u, nil
 }
 
-func (pg *Pg) ServiceById(ctx context.Context, id int64) (*models.SavedService, error) {
+func (pg *Pg) ServiceById(ctx context.Context, id int64) (*models.SavedService, ero.Error) {
 	return pg.whereService(ctx, "service_id = $1", id)
 }
 
-func (pg *Pg) whereService(ctx context.Context, where string, args ...any) (*models.SavedService, error) {
+func (pg *Pg) whereService(ctx context.Context, where string, args ...any) (*models.SavedService, ero.Error) {
 	const op = "postgres.Pg.serviceBy"
 
 	stmt, err := pg.db.PreparexContext(ctx, fmt.Sprintf(`
@@ -44,13 +45,13 @@ func (pg *Pg) whereService(ctx context.Context, where string, args ...any) (*mod
 		FROM services
 		WHERE %s`, where))
 	if err != nil {
-		return nil, preperr(err, op)
+		return nil, preparingError(err, op)
 	}
 
 	saved := &models.SavedService{}
 	err = stmt.GetContext(ctx, saved, args...)
 	if err != nil {
-		return nil, pgerr(err, op)
+		return nil, queryError(err, op)
 	}
 
 	return saved, nil
