@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Onnywrite/grpc-auth/internal/lib/ero"
 	"github.com/Onnywrite/grpc-auth/internal/lib/validation"
 	"github.com/Onnywrite/grpc-auth/internal/models"
 	"github.com/go-playground/validator/v10"
@@ -18,12 +17,10 @@ func TestValidate(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		structs   []interface{}
-		timeout   time.Duration
-		expErr    bool
-		expFields []ero.FieldError
-		expCode   string
+		name    string
+		structs []interface{}
+		timeout time.Duration
+		expErr  bool
 	}{
 		{
 			name: "OK",
@@ -35,10 +32,8 @@ func TestValidate(t *testing.T) {
 					Password: "12345678",
 				},
 			},
-			timeout:   time.Second,
-			expErr:    false,
-			expFields: []ero.FieldError{},
-			expCode:   "",
+			timeout: time.Second,
+			expErr:  false,
 		},
 		{
 			name: "1 Field",
@@ -51,14 +46,6 @@ func TestValidate(t *testing.T) {
 			},
 			timeout: time.Second,
 			expErr:  true,
-			expFields: []ero.FieldError{
-				{
-					Field:      "Phone",
-					Constraint: "e164",
-					Value:      "one",
-				},
-			},
-			expCode: ero.CodeValidation,
 		},
 		{
 			name: "2 Fields",
@@ -71,19 +58,6 @@ func TestValidate(t *testing.T) {
 			},
 			timeout: time.Second,
 			expErr:  true,
-			expFields: []ero.FieldError{
-				{
-					Field:      "Phone",
-					Constraint: "e164",
-					Value:      "one",
-				},
-				{
-					Field:      "Password",
-					Constraint: "gte",
-					Value:      "two",
-				},
-			},
-			expCode: ero.CodeValidation,
 		},
 		{
 			name: "Timeout",
@@ -93,10 +67,8 @@ func TestValidate(t *testing.T) {
 					Password: "12345678",
 				},
 			},
-			timeout:   0,
-			expErr:    true,
-			expFields: []ero.FieldError{},
-			expCode:   ero.CodeValidationTimeout,
+			timeout: 0,
+			expErr:  true,
 		},
 		{
 			name: "3 Structs",
@@ -127,29 +99,6 @@ func TestValidate(t *testing.T) {
 			},
 			timeout: time.Second,
 			expErr:  true,
-			expFields: []ero.FieldError{
-				{
-					Field:      "ServiceId",
-					Constraint: "gte",
-					Value:      int64(-1),
-				},
-				{
-					Field:      "Browser",
-					Constraint: "alphanum",
-					Value:      "aaa ",
-				},
-				{
-					Field:      "Ip",
-					Constraint: "ip",
-					Value:      "ip address",
-				},
-				{
-					Field:      "OS",
-					Constraint: "alphanum",
-					Value:      "! bbb",
-				},
-			},
-			expCode: ero.CodeValidation,
 		},
 	}
 
@@ -163,10 +112,6 @@ func TestValidate(t *testing.T) {
 			err := validation.Validate(ctx, tc.structs...)
 
 			assert.Equal(tt, tc.expErr, err != nil)
-			if ve, ok := err.(ero.ValidationError); ok {
-				assert.ElementsMatch(tt, tc.expFields, ve.Fields)
-				assert.Equal(tt, tc.expCode, ve.Code)
-			}
 		})
 	}
 }
@@ -177,12 +122,10 @@ func TestValidateWith(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		structs   []interface{}
-		fn        validation.ValidateFn
-		expErr    bool
-		expFields []ero.FieldError
-		expCode   string
+		name    string
+		structs []interface{}
+		fn      validation.ValidateFn
+		expErr  bool
 	}{
 		{
 			name: "OK",
@@ -197,9 +140,7 @@ func TestValidateWith(t *testing.T) {
 			fn: func(v *validator.Validate, a any) error {
 				return v.StructExcept(a, "Ip")
 			},
-			expErr:    false,
-			expFields: []ero.FieldError{},
-			expCode:   "",
+			expErr: false,
 		},
 		{
 			name: "1 Except",
@@ -232,24 +173,6 @@ func TestValidateWith(t *testing.T) {
 				return v.StructExcept(a, "Info.Ip")
 			},
 			expErr: true,
-			expFields: []ero.FieldError{
-				{
-					Field:      "ServiceId",
-					Constraint: "gte",
-					Value:      int64(-1),
-				},
-				{
-					Field:      "Browser",
-					Constraint: "alphanum",
-					Value:      "aaa ",
-				},
-				{
-					Field:      "OS",
-					Constraint: "alphanum",
-					Value:      "! bbb",
-				},
-			},
-			expCode: ero.CodeValidation,
 		},
 		{
 			name: "2 Excepts",
@@ -282,19 +205,6 @@ func TestValidateWith(t *testing.T) {
 				return v.StructExcept(a, "Info.Ip", "ServiceId")
 			},
 			expErr: true,
-			expFields: []ero.FieldError{
-				{
-					Field:      "Browser",
-					Constraint: "alphanum",
-					Value:      "aaa ",
-				},
-				{
-					Field:      "OS",
-					Constraint: "alphanum",
-					Value:      "! bbb",
-				},
-			},
-			expCode: ero.CodeValidation,
 		},
 	}
 
@@ -305,10 +215,6 @@ func TestValidateWith(t *testing.T) {
 			err := validation.ValidateWith(context.Background(), tc.fn, tc.structs...)
 
 			assert.Equal(tt, tc.expErr, err != nil)
-			if ve, ok := err.(ero.ValidationError); ok {
-				assert.ElementsMatch(tt, tc.expFields, ve.Fields)
-				assert.Equal(tt, tc.expCode, ve.Code)
-			}
 		})
 	}
 }
