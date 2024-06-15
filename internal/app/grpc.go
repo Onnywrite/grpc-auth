@@ -11,6 +11,7 @@ import (
 	"github.com/Onnywrite/grpc-auth/internal/lib/ero"
 	"github.com/Onnywrite/grpc-auth/internal/transport"
 	grpcauth "github.com/Onnywrite/grpc-auth/internal/transport/grpc/auth"
+	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"google.golang.org/grpc"
@@ -29,9 +30,14 @@ func NewGRPC(logger *slog.Logger, service transport.AuthService, port int, timeo
 
 	s := grpc.NewServer(grpc.ConnectionTimeout(timeout), grpc.ChainUnaryInterceptor(
 		recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(func(p interface{}) (err error) {
-			grpcLogger.Error("recovered from panic", slog.Any("panic", p), slog.String("stack", string(debug.Stack())))
+			id := uuid.New()
+			grpcLogger.Error("recovered from panic", slog.Any("panic", p),
+				slog.String("stack", string(debug.Stack())), slog.String("uuid", id.String()))
 
-			return status.Errorf(codes.Internal, ero.NewInternal().Error())
+			return status.Error(
+				codes.Internal,
+				ero.New(fmt.Sprintf("panic was recovered. Please, let us know. UUID: %s", id.String())).Error(),
+			)
 		})),
 		logging.UnaryServerInterceptor(logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
 			grpcLogger.Log(ctx, slog.Level(lvl), msg, fields...)
