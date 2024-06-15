@@ -37,6 +37,10 @@ func (e Basic) Error() string {
 	return string(b)
 }
 
+func (e Basic) Unwrap() error {
+	return e
+}
+
 func (e *Basic) lock() {
 	e.mu.Lock()
 }
