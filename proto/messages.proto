@@ -26,14 +26,17 @@ message SessionInfo {
 }
 
 message Sessions {
-  message Session {
-      sso.SessionInfo info = 1;
-      optional google.protobuf.Timestamp terminated_at = 2;
-  };
-  repeated Session sessions = 1;
+  repeated sso.SessionInfo sessions = 1;
 }
 
 message ProfileChangeRequest {
   string any_access_token = 1;
   sso.Profile new_profile = 2;
+}
+
+message ServiceInfo {
+  int64 id = 1;
+  int64 owner_id = 2;
+  string name = 3;
+  optional google.protobuf.Timestamp deleted_at = 4;
 }

@@ -24,7 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AuthClient interface {
 	Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	Register(ctx context.Context, in *Credentials, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Register(ctx context.Context, in *Credentials, opts ...grpc.CallOption) (*SsoResponse, error)
 	Login(ctx context.Context, in *Credentials, opts ...grpc.CallOption) (*SsoResponse, error)
 	Logout(ctx context.Context, in *RefreshToken, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Relogin(ctx context.Context, in *RefreshToken, opts ...grpc.CallOption) (*SsoResponse, error)
@@ -32,8 +32,9 @@ type AuthClient interface {
 	SetProfile(ctx context.Context, in *ProfileChangeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	GetProfile(ctx context.Context, in *SuperAccessToken, opts ...grpc.CallOption) (*Profile, error)
 	GetApps(ctx context.Context, in *SuperAccessToken, opts ...grpc.CallOption) (*Apps, error)
-	SetPassword(ctx context.Context, in *PasswordChangeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SetPassword(ctx context.Context, in *SetPasswordRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Delete(ctx context.Context, in *DangerousRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteApp(ctx context.Context, in *DeleteAppRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Recover(ctx context.Context, in *Credentials, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
@@ -54,8 +55,8 @@ func (c *authClient) Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.C
 	return out, nil
 }
 
-func (c *authClient) Register(ctx context.Context, in *Credentials, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authClient) Register(ctx context.Context, in *Credentials, opts ...grpc.CallOption) (*SsoResponse, error) {
+	out := new(SsoResponse)
 	err := c.cc.Invoke(ctx, "/auth.Auth/Register", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -126,7 +127,7 @@ func (c *authClient) GetApps(ctx context.Context, in *SuperAccessToken, opts ...
 	return out, nil
 }
 
-func (c *authClient) SetPassword(ctx context.Context, in *PasswordChangeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *authClient) SetPassword(ctx context.Context, in *SetPasswordRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/auth.Auth/SetPassword", in, out, opts...)
 	if err != nil {
@@ -138,6 +139,15 @@ func (c *authClient) SetPassword(ctx context.Context, in *PasswordChangeRequest,
 func (c *authClient) Delete(ctx context.Context, in *DangerousRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/auth.Auth/Delete", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authClient) DeleteApp(ctx context.Context, in *DeleteAppRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/auth.Auth/DeleteApp", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +168,7 @@ func (c *authClient) Recover(ctx context.Context, in *Credentials, opts ...grpc.
 // for forward compatibility
 type AuthServer interface {
 	Ping(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	Register(context.Context, *Credentials) (*emptypb.Empty, error)
+	Register(context.Context, *Credentials) (*SsoResponse, error)
 	Login(context.Context, *Credentials) (*SsoResponse, error)
 	Logout(context.Context, *RefreshToken) (*emptypb.Empty, error)
 	Relogin(context.Context, *RefreshToken) (*SsoResponse, error)
@@ -166,8 +176,9 @@ type AuthServer interface {
 	SetProfile(context.Context, *ProfileChangeRequest) (*emptypb.Empty, error)
 	GetProfile(context.Context, *SuperAccessToken) (*Profile, error)
 	GetApps(context.Context, *SuperAccessToken) (*Apps, error)
-	SetPassword(context.Context, *PasswordChangeRequest) (*emptypb.Empty, error)
+	SetPassword(context.Context, *SetPasswordRequest) (*emptypb.Empty, error)
 	Delete(context.Context, *DangerousRequest) (*emptypb.Empty, error)
+	DeleteApp(context.Context, *DeleteAppRequest) (*emptypb.Empty, error)
 	Recover(context.Context, *Credentials) (*emptypb.Empty, error)
 	mustEmbedUnimplementedAuthServer()
 }
@@ -179,7 +190,7 @@ type UnimplementedAuthServer struct {
 func (UnimplementedAuthServer) Ping(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
-func (UnimplementedAuthServer) Register(context.Context, *Credentials) (*emptypb.Empty, error) {
+func (UnimplementedAuthServer) Register(context.Context, *Credentials) (*SsoResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
 }
 func (UnimplementedAuthServer) Login(context.Context, *Credentials) (*SsoResponse, error) {
@@ -203,11 +214,14 @@ func (UnimplementedAuthServer) GetProfile(context.Context, *SuperAccessToken) (*
 func (UnimplementedAuthServer) GetApps(context.Context, *SuperAccessToken) (*Apps, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
 }
-func (UnimplementedAuthServer) SetPassword(context.Context, *PasswordChangeRequest) (*emptypb.Empty, error) {
+func (UnimplementedAuthServer) SetPassword(context.Context, *SetPasswordRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetPassword not implemented")
 }
 func (UnimplementedAuthServer) Delete(context.Context, *DangerousRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
+}
+func (UnimplementedAuthServer) DeleteApp(context.Context, *DeleteAppRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteApp not implemented")
 }
 func (UnimplementedAuthServer) Recover(context.Context, *Credentials) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Recover not implemented")
@@ -388,7 +402,7 @@ func _Auth_GetApps_Handler(srv interface{}, ctx context.Context, dec func(interf
 }
 
 func _Auth_SetPassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PasswordChangeRequest)
+	in := new(SetPasswordRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -400,7 +414,7 @@ func _Auth_SetPassword_Handler(srv interface{}, ctx context.Context, dec func(in
 		FullMethod: "/auth.Auth/SetPassword",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).SetPassword(ctx, req.(*PasswordChangeRequest))
+		return srv.(AuthServer).SetPassword(ctx, req.(*SetPasswordRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -419,6 +433,24 @@ func _Auth_Delete_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServer).Delete(ctx, req.(*DangerousRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Auth_DeleteApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAppRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServer).DeleteApp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/auth.Auth/DeleteApp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServer).DeleteApp(ctx, req.(*DeleteAppRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -491,6 +523,10 @@ var Auth_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Delete",
 			Handler:    _Auth_Delete_Handler,
+		},
+		{
+			MethodName: "DeleteApp",
+			Handler:    _Auth_DeleteApp_Handler,
 		},
 		{
 			MethodName: "Recover",
