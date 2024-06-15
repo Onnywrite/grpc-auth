@@ -8,17 +8,17 @@ import (
 )
 
 type AuthService struct {
-	log                                   *slog.Logger
-	db                                    *wrap.Wrapper
-	tokenTTL, refreshTokenTTL, idTokenTTL time.Duration
+	log                                            *slog.Logger
+	db                                             *wrap.Wrapper
+	tokenTTL, refreshTokenTTL, superAccessTokenTTL time.Duration
 }
 
-func New(logger *slog.Logger, db wrap.Storage, tokenTTL, refreshTokenTTL, idTokenTTL time.Duration) *AuthService {
+func New(logger *slog.Logger, db wrap.Storage, tokenTTL, refreshTokenTTL, superAccessTokenTTL time.Duration) *AuthService {
 	return &AuthService{
-		log:             logger,
-		db:              wrap.New(logger, db),
-		tokenTTL:        tokenTTL,
-		idTokenTTL:      idTokenTTL,
-		refreshTokenTTL: refreshTokenTTL,
+		log:                 logger,
+		db:                  wrap.New(logger, db),
+		tokenTTL:            tokenTTL,
+		superAccessTokenTTL: superAccessTokenTTL,
+		refreshTokenTTL:     refreshTokenTTL,
 	}
 }

@@ -19,7 +19,7 @@ type App struct {
 	db   Disconnector
 }
 
-func New(logger *slog.Logger, conn string, tokenTTL, refreshTokenTTL, idTokenTTL time.Duration, grpcPort int, grpcTimeout time.Duration) *App {
+func New(logger *slog.Logger, conn string, tokenTTL, refreshTokenTTL, superAccessTokenTTL time.Duration, grpcPort int, grpcTimeout time.Duration) *App {
 	const op = "app.New"
 	log := logger.With(slog.String("op", op))
 
@@ -29,7 +29,7 @@ func New(logger *slog.Logger, conn string, tokenTTL, refreshTokenTTL, idTokenTTL
 		os.Exit(1)
 	}
 
-	authService := auth.New(logger, db, tokenTTL, refreshTokenTTL, idTokenTTL)
+	authService := auth.New(logger, db, tokenTTL, refreshTokenTTL, superAccessTokenTTL)
 
 	app := NewGRPC(logger, authService, grpcPort, grpcTimeout)
 

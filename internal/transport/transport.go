@@ -3,32 +3,33 @@ package transport
 import (
 	"context"
 
-	"github.com/Onnywrite/grpc-auth/gen"
-	"google.golang.org/protobuf/types/known/emptypb"
+	"github.com/Onnywrite/grpc-auth/internal/lib/ero"
+	"github.com/Onnywrite/grpc-auth/internal/models"
 )
 
 type AuthService interface {
-	Register(context.Context, *gen.Credentials) (*emptypb.Empty, error)
-	Login(context.Context, *gen.Credentials) (*gen.SsoResponse, error)
-	Logout(context.Context, *gen.RefreshToken) (*emptypb.Empty, error)
-	Relogin(context.Context, *gen.RefreshToken) (*gen.SsoResponse, error)
-	Check(context.Context, *gen.SuperAccessToken) (*emptypb.Empty, error)
-	SetProfile(context.Context, *gen.ProfileChangeRequest) (*emptypb.Empty, error)
-	GetProfile(context.Context, *gen.SuperAccessToken) (*gen.Profile, error)
-	GetApps(context.Context, *gen.SuperAccessToken) (*gen.Apps, error)
-	SetPassword(context.Context, *gen.PasswordChangeRequest) (*emptypb.Empty, error)
-	Delete(context.Context, *gen.DangerousRequest) (*emptypb.Empty, error)
-	Recover(context.Context, *gen.Credentials) (*emptypb.Empty, error)
+	Register(ctx context.Context, creds *models.Credentials) (*models.LoginResponse, ero.Error)
+	Login(ctx context.Context, creds *models.Credentials) (*models.LoginResponse, ero.Error)
+	Logout(ctx context.Context, refreshToken string) ero.Error
+	Relogin(ctx context.Context, refreshToken string) (*models.LoginResponse, ero.Error)
+	Check(ctx context.Context, superAccessToken string) ero.Error
+	SetProfile(ctx context.Context, anyAccessToken string, user *models.User) ero.Error
+	GetProfile(ctx context.Context, superAccessToken string) (*models.Profile, ero.Error)
+	GetApps(ctx context.Context, superAccessToken string) ([]models.App, ero.Error)
+	SetPassword(ctx context.Context, superAccessToken string, password string) ero.Error
+	Delete(ctx context.Context, superAccessToken string, password string) ero.Error
+	DeleteApp(ctx context.Context, superAccessToken string, appId int64) ero.Error
+	Recover(ctx context.Context, creds *models.Credentials) ero.Error
 }
 
 type AppService interface {
-	Login(context.Context, *gen.AppRequest) (*gen.AppResponse, error)
-	Logout(context.Context, *gen.RefreshToken) (*emptypb.Empty, error)
-	Relogin(context.Context, *gen.RefreshToken) (*gen.AppResponse, error)
-	Check(context.Context, *gen.AccessToken) (*emptypb.Empty, error)
-	SetProfile(context.Context, *gen.ProfileChangeRequest) (*emptypb.Empty, error)
-	GetProfile(context.Context, *gen.AccessToken) (*gen.Profile, error)
-	GetSessions(context.Context, *gen.AccessToken) (*gen.Sessions, error)
-	Delete(context.Context, *gen.AccessToken) (*emptypb.Empty, error)
-	Recover(context.Context, *gen.AppRequest) (*emptypb.Empty, error)
+	Login(ctx context.Context, data *models.AppCredentials) (*models.AppResponse, ero.Error)
+	Logout(ctx context.Context, refreshToken string) ero.Error
+	Relogin(ctx context.Context, refreshToken string) (*models.AppResponse, ero.Error)
+	Check(ctx context.Context, accessToken string) ero.Error
+	SetProfile(ctx context.Context, anyAccessToken string, user *models.User) ero.Error
+	GetProfile(ctx context.Context, accessToken string) (*models.Profile, ero.Error)
+	GetSessions(ctx context.Context, accessToken string) ([]models.SessionInfo, ero.Error)
+	Delete(ctx context.Context, accessToken string) ero.Error
+	Recover(ctx context.Context, data *models.AppCredentials) ero.Error
 }
