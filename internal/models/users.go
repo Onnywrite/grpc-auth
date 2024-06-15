@@ -3,7 +3,7 @@ package models
 import "time"
 
 type User struct {
-	Login    *string `db:"login" validate:"gte=3,max=30"`
+	Login    *string `db:"login" validate:"gte=3,max=30,nickname"`
 	Email    *string `db:"email" validate:"omitempty,email,max=255"`
 	Phone    *string `db:"phone" validate:"omitempty,e164"`
 	Password string  `db:"password" validate:"required,lte=72,gte=8" secret:"1"`
