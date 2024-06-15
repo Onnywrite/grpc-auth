@@ -37,7 +37,7 @@ func (pg *Pg) SessionByUuid(ctx context.Context, uuid string) (*models.SavedSess
 	return pg.whereSession(ctx, "session_uuid = $1", uuid)
 }
 
-func (pg *Pg) SessionByInfo(ctx context.Context, serviceId, userId int64, info models.SessionInfo) (*models.SavedSession, error) {
+func (pg *Pg) SessionByInfo(ctx context.Context, serviceId, userId int64, info models.SessionInfo) (*models.SavedSession, ero.Error) {
 	ifNil := func(s *string) string {
 		if s == nil {
 			return "IS NULL"
