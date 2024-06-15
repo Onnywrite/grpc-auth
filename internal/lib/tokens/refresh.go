@@ -4,11 +4,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/Onnywrite/grpc-auth/internal/lib/ero"
 	"github.com/Onnywrite/grpc-auth/internal/models"
 	"github.com/golang-jwt/jwt"
 )
 
-func Refresh(token *models.RefreshToken) (string, error) {
+func Refresh(token *models.RefreshToken) (string, ero.Error) {
 	return New(jwt.MapClaims{
 		"session_uuid": token.SessionUUID,
 		// TODO: rotation
@@ -17,33 +18,33 @@ func Refresh(token *models.RefreshToken) (string, error) {
 	})
 }
 
-func ParseRefresh(tkn string) (*models.RefreshToken, error) {
+func ParseRefresh(tkn string) (*models.RefreshToken, ero.Error) {
 	parser := jwt.Parser{SkipClaimsValidation: true}
 	token, err := parser.Parse(tkn, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, ErrUnexpectedSigningMethod
+			return nil, ero.NewServer(ErrUnexpectedSigningMethod)
 		}
 
 		return []byte(os.Getenv(Env)), nil
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, ero.NewInternal(err.Error())
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		exp, ok := claims["exp"].(float64)
 		if !ok {
-			return nil, ErrInvalidData
+			return nil, ero.NewClient(ErrInvalidData)
 		}
 
 		sessionUUID, ok := claims["session_uuid"].(string)
 		if !ok {
-			return nil, ErrInvalidData
+			return nil, ero.NewClient(ErrInvalidData)
 		}
 		rotation, ok := claims["rotation"].(float64)
 		if !ok {
-			return nil, ErrInvalidData
+			return nil, ero.NewClient(ErrInvalidData)
 		}
 
 		token := &models.RefreshToken{
@@ -53,10 +54,10 @@ func ParseRefresh(tkn string) (*models.RefreshToken, error) {
 		}
 
 		if float64(time.Now().Unix()) > exp {
-			return token, ErrTokenExpired
+			return token, ero.NewClient(ErrTokenExpired)
 		}
 		return token, nil
 	}
 
-	return nil, err
+	return nil, ero.NewInternal(err.Error())
 }

@@ -6,7 +6,6 @@ import (
 	"github.com/Onnywrite/grpc-auth/internal/lib/tokens"
 	"github.com/Onnywrite/grpc-auth/internal/models"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRefresh(t *testing.T) {
@@ -33,18 +32,19 @@ func TestRefresh(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(tt *testing.T) {
 			exp, err := tokens.Refresh(tc.tkn)
-			require.ErrorIs(tt, err, tc.err)
-			require.Equal(tt, tc.exp, exp)
+			assert.ErrorIs(tt, err, tc.err)
+			assert.Equal(tt, tc.exp, exp)
 		})
 	}
 }
 
 func TestParseRefresh(t *testing.T) {
 	tests := []struct {
-		name string
-		tkn  string
-		exp  *models.RefreshToken
-		err  error
+		name   string
+		tkn    string
+		exp    *models.RefreshToken
+		expErr bool
+		hasErr string
 	}{
 		{
 			name: "OK",
@@ -54,7 +54,7 @@ func TestParseRefresh(t *testing.T) {
 				Rotation:    0,
 				Exp:         34961144400,
 			},
-			err: nil,
+			expErr: false,
 		},
 		{
 			name: "Expired",
@@ -64,25 +64,29 @@ func TestParseRefresh(t *testing.T) {
 				Rotation:    0,
 				Exp:         123456789,
 			},
-			err: tokens.ErrTokenExpired,
+			expErr: true,
+			hasErr: tokens.ErrTokenExpired,
 		},
 		{
-			name: "Invalid exp",
-			tkn:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOiIxMjM0NTY3ODkiLCJyb3RhdGlvbiI6MCwic2Vzc2lvbl91dWlkIjoiMjM4OTdhYzQtNmE5NS00ZDlhLWE3ZjEtMjY0ZTNjZTEwMDg0In0.X1SnQOKuEMcVUO45MbJZ3B1IZFCmZUJTGPqkXb-XiLU",
-			exp:  nil,
-			err:  tokens.ErrInvalidData,
+			name:   "Invalid exp",
+			tkn:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOiIxMjM0NTY3ODkiLCJyb3RhdGlvbiI6MCwic2Vzc2lvbl91dWlkIjoiMjM4OTdhYzQtNmE5NS00ZDlhLWE3ZjEtMjY0ZTNjZTEwMDg0In0.X1SnQOKuEMcVUO45MbJZ3B1IZFCmZUJTGPqkXb-XiLU",
+			exp:    nil,
+			expErr: true,
+			hasErr: tokens.ErrInvalidData,
 		},
 		{
-			name: "Invalid UUID",
-			tkn:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjEyMzQ1Njc4OSwicm90YXRpb24iOjAsInNlc3Npb25fdXVpZCI6MjM4OTd9.son34AxbDXgeEM9vb3-r693WmSQLlYzffLfri4fGt_0",
-			exp:  nil,
-			err:  tokens.ErrInvalidData,
+			name:   "Invalid UUID",
+			tkn:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjEyMzQ1Njc4OSwicm90YXRpb24iOjAsInNlc3Npb25fdXVpZCI6MjM4OTd9.son34AxbDXgeEM9vb3-r693WmSQLlYzffLfri4fGt_0",
+			exp:    nil,
+			expErr: true,
+			hasErr: tokens.ErrInvalidData,
 		},
 		{
-			name: "Invalid rotation",
-			tkn:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjEyMzQ1Njc4OSwicm90YXRpb24iOlsicGVhY2UiXSwic2Vzc2lvbl91dWlkIjoiMjM4OTdhYzQtNmE5NS00ZDlhLWE3ZjEtMjY0ZTNjZTEwMDg0In0.X_Ofb7zxZgq_dzZfNKI4sFfIidHF-uBQ-E-sy5n9qIQ",
-			exp:  nil,
-			err:  tokens.ErrInvalidData,
+			name:   "Invalid rotation",
+			tkn:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjEyMzQ1Njc4OSwicm90YXRpb24iOlsicGVhY2UiXSwic2Vzc2lvbl91dWlkIjoiMjM4OTdhYzQtNmE5NS00ZDlhLWE3ZjEtMjY0ZTNjZTEwMDg0In0.X_Ofb7zxZgq_dzZfNKI4sFfIidHF-uBQ-E-sy5n9qIQ",
+			exp:    nil,
+			expErr: true,
+			hasErr: tokens.ErrInvalidData,
 		},
 		// {
 		// 	name: "Unexpected signing method",
@@ -97,18 +101,21 @@ func TestParseRefresh(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(tt *testing.T) {
 			exp, err := tokens.ParseRefresh(tc.tkn)
-			require.ErrorIs(tt, err, tc.err)
-			require.EqualValues(tt, tc.exp, exp)
+			if tc.expErr {
+				assert.True(tt, err.Has(tc.hasErr))
+			}
+			assert.EqualValues(tt, tc.exp, exp)
 		})
 	}
 }
 
 func TestAccess(t *testing.T) {
 	tests := []struct {
-		name string
-		tkn  *models.AccessToken
-		exp  string
-		err  error
+		name   string
+		tkn    *models.AccessToken
+		exp    string
+		expErr bool
+		hasErr string
 	}{
 		{
 			name: "OK",
@@ -118,8 +125,8 @@ func TestAccess(t *testing.T) {
 				Roles:     []string{"role1", "role2"},
 				Exp:       987654321,
 			},
-			exp: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjk4NzY1NDMyMSwiaWQiOjY2MCwicm9sZXMiOlsicm9sZTEiLCJyb2xlMiJdLCJzZXJ2aWNlX2lkIjoxMjIwfQ.eGDFeVAaR70z76_-9gy21VDtp8hIX0woRKF4wlC4BDQ",
-			err: nil,
+			exp:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjk4NzY1NDMyMSwiaWQiOjY2MCwicm9sZXMiOlsicm9sZTEiLCJyb2xlMiJdLCJzZXJ2aWNlX2lkIjoxMjIwfQ.eGDFeVAaR70z76_-9gy21VDtp8hIX0woRKF4wlC4BDQ",
+			expErr: false,
 		},
 	}
 
@@ -128,18 +135,21 @@ func TestAccess(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(tt *testing.T) {
 			exp, err := tokens.Access(tc.tkn)
-			require.ErrorIs(tt, err, tc.err)
-			require.Equal(tt, tc.exp, exp)
+			if tc.expErr {
+				assert.True(tt, err.Has(tc.hasErr))
+			}
+			assert.Equal(tt, tc.exp, exp)
 		})
 	}
 }
 
 func TestParseAccess(t *testing.T) {
 	tests := []struct {
-		name string
-		tkn  string
-		exp  *models.AccessToken
-		err  error
+		name   string
+		tkn    string
+		exp    *models.AccessToken
+		expErr bool
+		hasErr string
 	}{
 		{
 			name: "OK",
@@ -150,7 +160,7 @@ func TestParseAccess(t *testing.T) {
 				Roles:     []string{"role1", "role2"},
 				Exp:       34961144400,
 			},
-			err: nil,
+			expErr: false,
 		},
 		{
 			name: "Expired",
@@ -161,31 +171,36 @@ func TestParseAccess(t *testing.T) {
 				Roles:     []string{"role1", "role2"},
 				Exp:       987654321,
 			},
-			err: tokens.ErrTokenExpired,
+			expErr: true,
+			hasErr: tokens.ErrTokenExpired,
 		},
 		{
-			name: "Invalid exp",
-			tkn:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOiIzNDk2MTE0NDQwMCIsImlkIjo2NjAsInJvbGVzIjpbInJvbGUxIiwicm9sZTIiXSwic2VydmljZV9pZCI6MTIyMH0.xUwKLt7yvKkFxweH1SZIJD_wb7VZtNj8PuPWxJNyKqM",
-			exp:  nil,
-			err:  tokens.ErrInvalidData,
+			name:   "Invalid exp",
+			tkn:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOiIzNDk2MTE0NDQwMCIsImlkIjo2NjAsInJvbGVzIjpbInJvbGUxIiwicm9sZTIiXSwic2VydmljZV9pZCI6MTIyMH0.xUwKLt7yvKkFxweH1SZIJD_wb7VZtNj8PuPWxJNyKqM",
+			exp:    nil,
+			expErr: true,
+			hasErr: tokens.ErrInvalidData,
 		},
 		{
-			name: "Invalid ID",
-			tkn:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjM0OTYxMTQ0NDAwLCJpZCI6W10sInJvbGVzIjpbInJvbGUxIiwicm9sZTIiXSwic2VydmljZV9pZCI6MTIyMH0.iLloFr5PLdLTeIlRdQxVGKcdTlTSKoUDUbYOMFYVUDs",
-			exp:  nil,
-			err:  tokens.ErrInvalidData,
+			name:   "Invalid ID",
+			tkn:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjM0OTYxMTQ0NDAwLCJpZCI6W10sInJvbGVzIjpbInJvbGUxIiwicm9sZTIiXSwic2VydmljZV9pZCI6MTIyMH0.iLloFr5PLdLTeIlRdQxVGKcdTlTSKoUDUbYOMFYVUDs",
+			exp:    nil,
+			expErr: true,
+			hasErr: tokens.ErrInvalidData,
 		},
 		{
-			name: "Invalid roles",
-			tkn:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjM0OTYxMTQ0NDAwLCJpZCI6NjYwLCJyb2xlcyI6NzcwLCJzZXJ2aWNlX2lkIjoxMjIwfQ.pWL8iMDQZcggtHvrzZEalIK94G_Aohd9aJFJsZ4_Mdw",
-			exp:  nil,
-			err:  tokens.ErrInvalidData,
+			name:   "Invalid roles",
+			tkn:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjM0OTYxMTQ0NDAwLCJpZCI6NjYwLCJyb2xlcyI6NzcwLCJzZXJ2aWNlX2lkIjoxMjIwfQ.pWL8iMDQZcggtHvrzZEalIK94G_Aohd9aJFJsZ4_Mdw",
+			exp:    nil,
+			expErr: true,
+			hasErr: tokens.ErrInvalidData,
 		},
 		{
-			name: "Invalid service id",
-			tkn:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjM0OTYxMTQ0NDAwLCJpZCI6NjYwLCJyb2xlcyI6WyJyb2xlMSIsInJvbGUyIl0sInNlcnZpY2VfaWQiOnsiaWQiOjEyMjB9fQ.IkPrkIbgy_dc46H50ZAueiT0PlI_BW96eokkUl1XpFQ",
-			exp:  nil,
-			err:  tokens.ErrInvalidData,
+			name:   "Invalid service id",
+			tkn:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjM0OTYxMTQ0NDAwLCJpZCI6NjYwLCJyb2xlcyI6WyJyb2xlMSIsInJvbGUyIl0sInNlcnZpY2VfaWQiOnsiaWQiOjEyMjB9fQ.IkPrkIbgy_dc46H50ZAueiT0PlI_BW96eokkUl1XpFQ",
+			exp:    nil,
+			expErr: true,
+			hasErr: tokens.ErrInvalidData,
 		},
 		// {
 		// 	name: "Unexpected signing method",
@@ -200,8 +215,10 @@ func TestParseAccess(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(tt *testing.T) {
 			exp, err := tokens.ParseAccess(tc.tkn)
-			assert.ErrorIs(tt, err, tc.err)
-			require.EqualValues(tt, tc.exp, exp)
+			if tc.expErr {
+				assert.True(tt, err.Has(tc.hasErr))
+			}
+			assert.EqualValues(tt, tc.exp, exp)
 		})
 	}
 }
