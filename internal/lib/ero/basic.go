@@ -2,8 +2,6 @@ package ero
 
 import (
 	"encoding/json"
-	"fmt"
-	"reflect"
 	"slices"
 	"sync"
 )
@@ -12,23 +10,26 @@ const (
 	CurrentService = "SSO"
 )
 
+type Error interface {
+	error
+	Has(errText string) bool
+}
+
 type Basic struct {
 	Service string
-	Code    string
 	Errors  []string
 	mu      *sync.Mutex
 }
 
-func New(code string, errs ...string) *Basic {
+func New(errs ...string) *Basic {
 	return &Basic{
 		Service: CurrentService,
-		Code:    code,
 		Errors:  errs,
 		mu:      &sync.Mutex{},
 	}
 }
 
-func (e *Basic) Error() string {
+func (e Basic) Error() string {
 	b, err := json.Marshal(e)
 	if err != nil {
 		panic(err)
@@ -54,29 +55,17 @@ func (e *Basic) addWithoutLock(err ...string) {
 	e.Errors = append(e.Errors, err...)
 }
 
-func (e *Basic) SetCode(code string) *Basic {
-	e.lock()
-	e.Code = code
-	e.unlock()
-	return e
+func (e *Basic) Has(errText string) bool {
+	return slices.Contains(e.Errors, errText)
 }
 
-func (e *Basic) Compare(e2 *Basic) bool {
-	return e.Code == e2.Code && slices.Equal(e.Errors, e2.Errors)
-}
-
-func Unmarshal(body []byte, errTypes map[string]interface{}) error {
-	var err Basic
-	json.Unmarshal(body, &err)
-
-	var tp interface{}
-	var ok bool
-	if tp, ok = errTypes[err.Code]; !ok {
-		return NewInternal(fmt.Sprintf("could not find type for '%s' error", err.Code))
+// checks if not nil err has specific error.
+// If err is nil, returns false
+func Has(err Error, errText string) bool {
+	if err != nil {
+		return err.Has(errText)
 	}
-
-	initErr := reflect.New(reflect.TypeOf(tp))
-	json.Unmarshal(body, initErr.Interface())
-
-	return initErr.Elem().Interface().(error)
+	return false
 }
+
+// TODO: ero.HasAll, ero.HasAny

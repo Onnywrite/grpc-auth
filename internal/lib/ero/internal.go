@@ -1,34 +1,20 @@
 package ero
 
-import (
-	"time"
-
-	"github.com/google/uuid"
-)
-
 type Internal struct {
 	*Basic
-	Time          *time.Time
-	UniqueErrorId *uuid.UUID
+	Function string
 }
 
-func NewInternal(errs ...string) *Internal {
+func NewInternal(function string, errors ...string) *Internal {
 	return &Internal{
-		Basic: New(CodeInternal, errs...),
+		Basic:    New(errors...),
+		Function: function,
 	}
 }
 
-func (i *Internal) WithTime() *Internal {
-	t := time.Now()
-	i.lock()
-	i.Time = &t
-	i.unlock()
-	return i
-}
-
-func (i *Internal) WithUUID(id uuid.UUID) *Internal {
-	i.lock()
-	i.UniqueErrorId = &id
-	i.unlock()
-	return i
+func InternalFrom(function string, basic *Basic) *Internal {
+	return &Internal{
+		Basic:    basic,
+		Function: function,
+	}
 }
