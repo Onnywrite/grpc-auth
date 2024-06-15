@@ -56,10 +56,6 @@ func TestSaveUser(t *testing.T) {
 	db := postgresUp(t)
 	defer db.Disconnect()
 
-	ptr := func(s string) *string {
-		return &s
-	}
-
 	tests := []struct {
 		name     string
 		user     *models.User
@@ -70,13 +66,12 @@ func TestSaveUser(t *testing.T) {
 		{
 			name: "success",
 			user: &models.User{
-				Login:    ptr("Nicelogin"),
+				Login:    "Nicelogin",
 				Password: "nil45678",
 			},
 			expected: &models.SavedUser{
-				Id:       1,
-				Login:    "Nicelogin",
-				Password: "nil45678",
+				Id:    1,
+				Login: "Nicelogin",
 			},
 			expErr: false,
 			err:    nil,
@@ -84,7 +79,7 @@ func TestSaveUser(t *testing.T) {
 		{
 			name: "exists",
 			user: &models.User{
-				Login:    ptr("Nicelogin"),
+				Login:    "Nicelogin",
 				Password: "another_password",
 			},
 			expected: nil,

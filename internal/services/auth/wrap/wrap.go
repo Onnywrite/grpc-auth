@@ -213,7 +213,7 @@ func (w *Wrapper) SaveUser(ctx context.Context, user *models.User) (*models.Save
 	u, err := w.Storage.SaveUser(ctx, user)
 	switch {
 	case ero.Has(err, storage.ErrUniqueConstraint):
-		u, err = w.UserByLogin(ctx, *user.Login)
+		u, err = w.UserByLogin(ctx, user.Login)
 		if err.Has(auth.ErrUserDeleted) {
 			log.Error("user deleted", slog.Int64("id", u.Id), slog.String("error", err.Error()))
 			return nil, err

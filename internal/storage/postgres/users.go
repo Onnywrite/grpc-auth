@@ -53,7 +53,7 @@ func (pg *Pg) whereUser(ctx context.Context, where string, args ...any) (*models
 	const op = "postgres.Pg.userBy"
 
 	stmt, err := pg.db.PreparexContext(ctx, fmt.Sprintf(`
-		SELECT user_id, login, email, phone, password, deleted_at
+		SELECT user_id, login, email, phone, deleted_at
 		FROM users
 		WHERE %s`, where))
 	if err != nil {
