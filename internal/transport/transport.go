@@ -23,9 +23,9 @@ type AuthService interface {
 }
 
 type AppService interface {
-	Login(ctx context.Context, data *models.AppCredentials) (*models.AppResponse, ero.Error)
+	Login(ctx context.Context, data *models.AppCredentials) (*models.LoginResponse, ero.Error)
 	Logout(ctx context.Context, refreshToken string) ero.Error
-	Relogin(ctx context.Context, refreshToken string) (*models.AppResponse, ero.Error)
+	Relogin(ctx context.Context, refreshToken string) (*models.LoginResponse, ero.Error)
 	Check(ctx context.Context, accessToken string) ero.Error
 	SetProfile(ctx context.Context, anyAccessToken string, user *models.User) ero.Error
 	GetProfile(ctx context.Context, accessToken string) (*models.Profile, ero.Error)

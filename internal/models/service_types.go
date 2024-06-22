@@ -14,12 +14,6 @@ type AppCredentials struct {
 }
 
 type LoginResponse struct {
-	SuperAccessToken string
-	RefreshToken     string
-	Profile          *Profile
-}
-
-type AppResponse struct {
 	AccessToken  string
 	RefreshToken string
 	Profile      *Profile
