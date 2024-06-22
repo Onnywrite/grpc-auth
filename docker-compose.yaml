@@ -2,14 +2,11 @@ version: "3.2"
 name: sso_service
 services:
   postgres:
-    ports:
-      - 5432:5432
     environment:
       - POSTGRES_DB=sso
       - POSTGRES_USER=usr
       - POSTGRES_PASSWORD=pswd
     container_name: pg
-    hostname: db
     networks:
       - pgnet
     volumes:
@@ -42,23 +39,21 @@ services:
         "-path",
         "/migrations",
         "-database",
-        "postgres://usr:pswd@db:5432/sso?sslmode=disable",
+        "postgres://usr:pswd@pg:5432/sso?sslmode=disable",
         "up"
       ]
     image: migrate/migrate
   sso:
     depends_on:
-      postgres:
-        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     ports:
       - 8080:8080
-      - 5055:5055
+      - 5050:5050
     environment:
       - TOKEN_SECRET=secret123
       - CONFIG_PATH=./configs/local.yaml
-      - CONN=postgres://usr:pswd@db:5432/sso
+      - CONN=postgres://usr:pswd@pg:5432/sso
     container_name: sso
     networks:
       - pgnet

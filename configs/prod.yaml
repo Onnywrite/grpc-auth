@@ -5,5 +5,5 @@ token_ttl: 5m
 refresh_token_ttl: 720h
 id_token_ttl: 720h
 grpc:
-  port: 5055
+  port: 5050
   timeout: 5s

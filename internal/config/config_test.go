@@ -25,7 +25,7 @@ func TestMustLoadByPath(t *testing.T) {
 				MigrationsPath: "./migrations",
 				TokenTTL:       10 * time.Hour,
 				GRPC: config.GRPCConfig{
-					Port:    5055,
+					Port:    5050,
 					Timeout: 10 * time.Hour,
 				},
 			},
@@ -41,7 +41,7 @@ func TestMustLoadByPath(t *testing.T) {
 				MigrationsPath: "./migrations",
 				TokenTTL:       10 * time.Hour,
 				GRPC: config.GRPCConfig{
-					Port:    5055,
+					Port:    5050,
 					Timeout: 10 * time.Hour,
 				},
 			},
@@ -57,7 +57,7 @@ func TestMustLoadByPath(t *testing.T) {
 				MigrationsPath: "./migrations",
 				TokenTTL:       10 * time.Hour,
 				GRPC: config.GRPCConfig{
-					Port:    5055,
+					Port:    5050,
 					Timeout: 30 * time.Minute,
 				},
 			},
@@ -73,7 +73,7 @@ func TestMustLoadByPath(t *testing.T) {
 				MigrationsPath: "./migrations",
 				TokenTTL:       10 * time.Hour,
 				GRPC: config.GRPCConfig{
-					Port:    5055,
+					Port:    5050,
 					Timeout: 30 * time.Minute,
 				},
 			},
