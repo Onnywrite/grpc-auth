@@ -66,12 +66,12 @@ func TestSaveUser(t *testing.T) {
 		{
 			name: "success",
 			user: &models.User{
-				Login:    "Nicelogin",
+				Nickname: "Nicelogin",
 				Password: "nil45678",
 			},
 			expected: &models.SavedUser{
-				Id:    1,
-				Login: "Nicelogin",
+				Id:       1,
+				Nickname: "Nicelogin",
 			},
 			expErr: false,
 			err:    nil,
@@ -79,7 +79,7 @@ func TestSaveUser(t *testing.T) {
 		{
 			name: "exists",
 			user: &models.User{
-				Login:    "Nicelogin",
+				Nickname: "Nicelogin",
 				Password: "another_password",
 			},
 			expected: nil,

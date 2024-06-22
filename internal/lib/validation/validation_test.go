@@ -26,7 +26,7 @@ func TestValidate(t *testing.T) {
 			name: "OK",
 			structs: []interface{}{
 				models.User{
-					Login:    "aboba",
+					Nickname: "aboba",
 					Email:    ptr("some@mail.test"),
 					Phone:    ptr("+79998887766"),
 					Password: "12345678",
@@ -39,7 +39,7 @@ func TestValidate(t *testing.T) {
 			name: "1 Field",
 			structs: []interface{}{
 				models.User{
-					Login:    "aboba",
+					Nickname: "aboba",
 					Phone:    ptr("one"),
 					Password: "12345678",
 				},
@@ -51,7 +51,7 @@ func TestValidate(t *testing.T) {
 			name: "2 Fields",
 			structs: []interface{}{
 				models.User{
-					Login:    "aboba",
+					Nickname: "aboba",
 					Phone:    ptr("one"),
 					Password: "two",
 				},
@@ -63,7 +63,7 @@ func TestValidate(t *testing.T) {
 			name: "Timeout",
 			structs: []interface{}{
 				models.User{
-					Login:    "aboba",
+					Nickname: "aboba",
 					Password: "12345678",
 				},
 			},
@@ -74,7 +74,7 @@ func TestValidate(t *testing.T) {
 			name: "3 Structs",
 			structs: []interface{}{
 				models.User{
-					Login:    "aboba",
+					Nickname: "aboba",
 					Phone:    ptr("+79998887766"),
 					Password: "12345678",
 				},
@@ -131,7 +131,7 @@ func TestValidateWith(t *testing.T) {
 			name: "OK",
 			structs: []interface{}{
 				models.User{
-					Login:    "aboba",
+					Nickname: "aboba",
 					Email:    ptr("some@mail.test"),
 					Phone:    ptr("+79998887766"),
 					Password: "12345678",
@@ -146,7 +146,7 @@ func TestValidateWith(t *testing.T) {
 			name: "1 Except",
 			structs: []interface{}{
 				models.User{
-					Login:    "aboba",
+					Nickname: "aboba",
 					Phone:    ptr("+79998887766"),
 					Password: "12345678",
 				},
@@ -178,7 +178,7 @@ func TestValidateWith(t *testing.T) {
 			name: "2 Excepts",
 			structs: []interface{}{
 				models.User{
-					Login:    "aboba",
+					Nickname: "aboba",
 					Phone:    ptr("+79998887766"),
 					Password: "12345678",
 				},
