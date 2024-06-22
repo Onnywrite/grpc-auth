@@ -79,5 +79,5 @@ func ParseAccess(tkn string) (*models.AccessToken, ero.Error) {
 		return token, nil
 	}
 
-	return nil, ero.NewInternal(err.Error())
+	return nil, ero.NewInternal("tokens.ParseRefresh", "could not parse token")
 }
