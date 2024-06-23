@@ -51,6 +51,7 @@ services:
     container_name: service
     networks:
       - local_network
+      - global_network
     volumes:
       - ./configs:/etc/sso:ro
     build: .
