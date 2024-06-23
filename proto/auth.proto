@@ -38,9 +38,11 @@ service Auth {
 }
 
 message Credentials {
-  sso.Profile profile = 1;
-  string password = 2;
-  sso.SessionInfo info = 3;
+  string nickname = 1;
+  optional string email = 2;
+  optional string phone = 3;
+  string password = 4;
+  sso.SessionInfo info = 5;
 }
 
 message SsoResponse {
@@ -57,6 +59,7 @@ message DangerousRequest {
 message SetPasswordRequest {
   sso.SuperAccessToken token = 1;
   string password = 2;
+  string old_password = 3;
 }
 
 message Apps {
