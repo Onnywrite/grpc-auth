@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"os"
 	"time"
 
 	"github.com/Onnywrite/grpc-auth/internal/lib/ero"
@@ -9,42 +8,42 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
-func Refresh(token *models.RefreshToken) (string, ero.Error) {
+func Refresh(token *models.RefreshToken, secret string) (string, ero.Error) {
 	return New(jwt.MapClaims{
 		"session_uuid": token.SessionUUID,
 		// TODO: rotation
 		"rotation": 0,
 		"exp":      token.Exp,
-	})
+	}, secret)
 }
 
-func ParseRefresh(tkn string) (*models.RefreshToken, ero.Error) {
+func ParseRefresh(tkn, secret string) (*models.RefreshToken, ero.Error) {
 	parser := jwt.Parser{SkipClaimsValidation: true}
 	token, err := parser.Parse(tkn, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, ero.NewServer(ErrUnexpectedSigningMethod)
+			return nil, ero.NewServer(ero.CodeUnauthorized, ErrUnexpectedSigningMethod)
 		}
 
-		return []byte(os.Getenv(Env)), nil
+		return []byte(secret), nil
 	})
 
 	if err != nil {
-		return nil, ero.NewInternal(err.Error())
+		return nil, ero.NewInternal(ero.CodeInternal, err.Error())
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		exp, ok := claims["exp"].(float64)
 		if !ok {
-			return nil, ero.NewClient(ErrInvalidData)
+			return nil, ero.NewClient(ero.CodeUnauthorized, ErrInvalidData)
 		}
 
 		sessionUUID, ok := claims["session_uuid"].(string)
 		if !ok {
-			return nil, ero.NewClient(ErrInvalidData)
+			return nil, ero.NewClient(ero.CodeUnauthorized, ErrInvalidData)
 		}
 		rotation, ok := claims["rotation"].(float64)
 		if !ok {
-			return nil, ero.NewClient(ErrInvalidData)
+			return nil, ero.NewClient(ero.CodeUnauthorized, ErrInvalidData)
 		}
 
 		token := &models.RefreshToken{
@@ -54,10 +53,10 @@ func ParseRefresh(tkn string) (*models.RefreshToken, ero.Error) {
 		}
 
 		if float64(time.Now().Unix()) > exp {
-			return token, ero.NewClient(ErrTokenExpired)
+			return token, ero.NewClient(ero.CodeUnauthorized, ErrTokenExpired)
 		}
 		return token, nil
 	}
 
-	return nil, ero.NewInternal("tokens.ParseRefresh", "could not parse token")
+	return nil, ero.NewInternal(ero.CodeInternal, "could not parse token")
 }

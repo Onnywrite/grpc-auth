@@ -35,8 +35,8 @@ func (s *AuthService) openSession(ctx context.Context, log *slog.Logger, saved *
 	refresh, erro := tokens.Refresh(&models.RefreshToken{
 		SessionUUID: session.UUID,
 		Rotation:    1,
-		Exp:         time.Now().Add(s.refreshTokenTTL).Unix(),
-	})
+		Exp:         time.Now().Add(s.refreshConfig.TTL).Unix(),
+	}, s.refreshConfig.Secret)
 	if erro != nil {
 		log.Error("failed to generate refresh token", slog.String("error", erro.Error()))
 		s.db.DeleteSession(ctx, session.UUID)
@@ -54,8 +54,8 @@ func (s *AuthService) openSession(ctx context.Context, log *slog.Logger, saved *
 		Id:        saved.Id,
 		ServiceId: 0,
 		Roles:     []string{},
-		Exp:       time.Now().Add(s.superAccessTokenTTL).Unix(),
-	})
+		Exp:       time.Now().Add(s.accessConfig.TTL).Unix(),
+	}, s.accessConfig.Secret)
 	if erro != nil {
 		log.Error("failed to create super access token", slog.String("error", erro.Error()))
 		s.db.DeleteSession(ctx, session.UUID)

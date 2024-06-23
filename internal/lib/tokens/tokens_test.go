@@ -8,6 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	secret = "123aboba321"
+)
+
 func TestRefresh(t *testing.T) {
 	tests := []struct {
 		name string
@@ -27,11 +31,9 @@ func TestRefresh(t *testing.T) {
 		},
 	}
 
-	t.Setenv("TOKEN_SECRET", "123aboba321")
-
 	for _, tc := range tests {
 		t.Run(tc.name, func(tt *testing.T) {
-			exp, err := tokens.Refresh(tc.tkn)
+			exp, err := tokens.Refresh(tc.tkn, secret)
 			assert.ErrorIs(tt, err, tc.err)
 			assert.Equal(tt, tc.exp, exp)
 		})
@@ -100,7 +102,7 @@ func TestParseRefresh(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(tt *testing.T) {
-			exp, err := tokens.ParseRefresh(tc.tkn)
+			exp, err := tokens.ParseRefresh(tc.tkn, secret)
 			if tc.expErr {
 				assert.True(tt, err.Has(tc.hasErr))
 			}
@@ -134,7 +136,7 @@ func TestAccess(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(tt *testing.T) {
-			exp, err := tokens.Access(tc.tkn)
+			exp, err := tokens.Access(tc.tkn, secret)
 			if tc.expErr {
 				assert.True(tt, err.Has(tc.hasErr))
 			}
@@ -214,7 +216,7 @@ func TestParseAccess(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(tt *testing.T) {
-			exp, err := tokens.ParseAccess(tc.tkn)
+			exp, err := tokens.ParseAccess(tc.tkn, secret)
 			if tc.expErr {
 				assert.True(tt, err.Has(tc.hasErr))
 			}
