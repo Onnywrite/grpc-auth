@@ -1,6 +1,6 @@
 package auth
 
-var (
+const (
 	ErrInvalidCredentials = "invalid credentials"
 
 	ErrUserAlreadyRegistered = "user already exists"
@@ -17,7 +17,4 @@ var (
 
 	ErrSessionAlreadyOpened = "session has already been opened"
 	ErrSessionNotExists     = "sesson does not exist"
-
-	ErrUnauthorized = "unauthorized"
-	ErrTokenExpired = "token has expired"
 )
