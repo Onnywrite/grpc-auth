@@ -3,8 +3,8 @@ package auth
 import (
 	"context"
 	"log/slog"
-	"time"
 
+	"github.com/Onnywrite/grpc-auth/internal/config"
 	"github.com/Onnywrite/grpc-auth/internal/lib/ero"
 	"github.com/Onnywrite/grpc-auth/internal/models"
 )
@@ -12,7 +12,7 @@ import (
 type Storage interface {
 	SaveUser(ctx context.Context, user *models.User) (*models.SavedUser, ero.Error)
 	UserById(ctx context.Context, id int64) (*models.SavedUser, ero.Error)
-	UserByNickname(ctx context.Context, login string) (*models.SavedUser, ero.Error)
+	UserByNickname(ctx context.Context, nickname string) (*models.SavedUser, ero.Error)
 	UserByEmail(ctx context.Context, email string) (*models.SavedUser, ero.Error)
 	UserByPhone(ctx context.Context, phone string) (*models.SavedUser, ero.Error)
 
@@ -26,17 +26,17 @@ type Storage interface {
 }
 
 type AuthService struct {
-	log                                            *slog.Logger
-	db                                             Storage
-	tokenTTL, refreshTokenTTL, superAccessTokenTTL time.Duration
+	log           *slog.Logger
+	db            Storage
+	accessConfig  *config.TokenConfig
+	refreshConfig *config.TokenConfig
 }
 
-func New(logger *slog.Logger, db Storage, tokenTTL, refreshTokenTTL, superAccessTokenTTL time.Duration) *AuthService {
+func New(logger *slog.Logger, db Storage, accessConfig, refreshConfig *config.TokenConfig) *AuthService {
 	return &AuthService{
-		log:                 logger,
-		db:                  NewWrapper(logger, db),
-		tokenTTL:            tokenTTL,
-		superAccessTokenTTL: superAccessTokenTTL,
-		refreshTokenTTL:     refreshTokenTTL,
+		log:           logger,
+		db:            NewWrapper(logger, db),
+		accessConfig:  accessConfig,
+		refreshConfig: refreshConfig,
 	}
 }

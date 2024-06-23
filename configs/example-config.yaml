@@ -1,0 +1,32 @@
+# enviroment param
+# must be local, dev, prod
+environment: "prod"
+# postgresql connection string
+conn: "postgres://usr:pswd@postgres:5432/sso"
+access_token: 
+  secret: "access_token_secret"
+  ttl: 5m
+  issuer: "ursso.com"
+  audience: "ursso.com"
+  subject: "ursso.com"
+refresh_token:
+  secret: "refresh_token_secret"
+  ttl: 720h
+  issuer: "ursso.com"
+  audience: "ursso.com"
+  subject: "ursso.com"
+default_users:
+  - nickname: root
+    password: rootroot
+    roles:
+      - name: root
+grpc:
+  port: 5050
+  timeout: 5s
+  # cert: "cert.pem"
+  # key: "key.pem"
+https:
+  port: 8080
+  timeout: 5s
+  # cert: "cert.pem"
+  # key: "key.pem"

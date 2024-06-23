@@ -2,6 +2,9 @@ GEN=./gen
 PROTOPATH=./proto
 SSOPROTOS=messages.proto auth.proto app.proto
 
+up:
+	docker compose --env-file configs/ignore-postgres.env up
+
 protoc:
 	protoc --go_out=${GEN} --go_opt=paths=source_relative \
     --go-grpc_out=${GEN} --go-grpc_opt=paths=source_relative \

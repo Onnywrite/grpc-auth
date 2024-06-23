@@ -1,9 +1,10 @@
-ignore-*
-/proto/
-Makefile
-Taskfile.yaml
-bin
+bin/
+certs/
+configs/
+migrations/
+proto/
+tests/
 .git
 .gitignore
-/tests/
-/migrations/
+ignore-*
+Makefile

@@ -3,8 +3,8 @@ package app
 import (
 	"log/slog"
 	"os"
-	"time"
 
+	"github.com/Onnywrite/grpc-auth/internal/config"
 	"github.com/Onnywrite/grpc-auth/internal/services/auth"
 	"github.com/Onnywrite/grpc-auth/internal/storage"
 )
@@ -19,19 +19,19 @@ type App struct {
 	db   Disconnector
 }
 
-func New(logger *slog.Logger, conn string, tokenTTL, refreshTokenTTL, superAccessTokenTTL time.Duration, grpcPort int, grpcTimeout time.Duration) *App {
+func New(logger *slog.Logger, cfg *config.Config) *App {
 	const op = "app.New"
 	log := logger.With(slog.String("op", op))
 
-	db, err := storage.New(conn)
+	db, err := storage.New(cfg.Conn)
 	if err != nil {
 		log.Error("could not connect to database(s)", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
-	authService := auth.New(logger, db, tokenTTL, refreshTokenTTL, superAccessTokenTTL)
+	authService := auth.New(logger, db, &cfg.AccessToken, &cfg.RefreshToken)
 
-	app := NewGRPC(logger, authService, grpcPort, grpcTimeout)
+	app := NewGRPC(logger, authService, cfg.Grpc.Port, cfg.Grpc.Timeout)
 
 	return &App{
 		grpc: app,

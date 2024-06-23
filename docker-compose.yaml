@@ -1,14 +1,10 @@
-version: "3.2"
 name: sso
 services:
   postgres:
-    environment:
-      - POSTGRES_DB=sso
-      - POSTGRES_USER=usr
-      - POSTGRES_PASSWORD=pswd
-    container_name: pg
+    container_name: postgres
+    env_file: configs/ignore-postgres.env
     networks:
-      - pgnet
+      - local_network
     volumes:
       - pg:/var/lib/postgresql/data
     image: postgres:16.2-alpine3.19
@@ -30,8 +26,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file: configs/ignore-postgres.env
+    container_name: migrate
     networks:
-      - pgnet
+      - local_network
     volumes:
       - ./migrations:/migrations
     command:
@@ -39,27 +37,26 @@ services:
         "-path",
         "/migrations",
         "-database",
-        "postgres://usr:pswd@pg:5432/sso?sslmode=disable",
+        "postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:5432/$POSTGRES_DB?sslmode=disable",
         "up"
       ]
-    image: migrate/migrate
-  sso:
+    image: migrate/migrate:v4.17.1
+  service:
     depends_on:
       migrate:
         condition: service_completed_successfully
     ports:
       - 8080:8080
       - 5050:5050
-    environment:
-      - TOKEN_SECRET=secret123
-      - CONFIG_PATH=./configs/local.yaml
-      - CONN=postgres://usr:pswd@pg:5432/sso
-    container_name: sso
+    container_name: service
     networks:
-      - pgnet
+      - local_network
+    volumes:
+      - ./configs:/etc/sso:ro
     build: .
 networks:
-  pgnet:
-    driver: bridge
+  local_network:
+  global_network:
+    external: true
 volumes:
   pg:
