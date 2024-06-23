@@ -1,5 +1,4 @@
 bin/
-storage/
 certs/*.pem
 certs/*.srl
 configs/local.yaml

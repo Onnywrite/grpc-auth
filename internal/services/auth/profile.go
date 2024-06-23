@@ -20,14 +20,14 @@ func (s *AuthService) Register(ctx context.Context, creds *models.Credentials) (
 	hashed, err := bcrypt.GenerateFromPassword([]byte(creds.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Error("failed to hash password", slog.String("error", err.Error()))
-		return nil, ero.NewServer(op)
+		return nil, ero.NewServer(ero.CodeInternal, op)
 	}
 	creds.Password = string(hashed)
 
 	saved, erro := s.db.SaveUser(ctx, &creds.User)
 	if erro != nil {
 		log.Error("failed to save user", slog.String("error", erro.Error()))
-		return nil, ero.NewServer(op)
+		return nil, ero.NewServer(ero.CodeInternal, op)
 	}
 	log.Info("saved user")
 
@@ -51,7 +51,7 @@ func (s *AuthService) Login(ctx context.Context, creds *models.Credentials) (*mo
 	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(creds.Password))
 	if err != nil {
 		log.Error("hash and passwword mismatch", slog.String("error", err.Error()))
-		return nil, ero.NewClient("invalid credentials")
+		return nil, ero.NewClient(ero.CodeBadRequest, ErrInvalidCredentials)
 	}
 
 	return s.openSession(ctx, log, user, creds.Info)

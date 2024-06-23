@@ -84,7 +84,7 @@ func TestSaveUser(t *testing.T) {
 			},
 			expected: nil,
 			expErr:   true,
-			err:      ero.NewClient(storage.ErrUniqueConstraint),
+			err:      ero.NewClient(ero.CodeUnknownClient, storage.ErrUniqueConstraint),
 		},
 	}
 

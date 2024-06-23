@@ -36,7 +36,7 @@ func NewGRPC(logger *slog.Logger, service transport.AuthService, port int, timeo
 
 			return status.Error(
 				codes.Internal,
-				ero.New(fmt.Sprintf("panic was recovered. Please, let us know. UUID: %s", id.String())).Error(),
+				ero.New(ero.CodeInternal, fmt.Sprintf("panic was recovered. Please, let us know. UUID: %s", id.String())).Error(),
 			)
 		})),
 		logging.UnaryServerInterceptor(logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {

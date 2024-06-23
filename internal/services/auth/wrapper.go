@@ -34,10 +34,10 @@ func (w *Wrapper) SaveSession(ctx context.Context, session *models.Session) (*mo
 	switch {
 	case ero.Has(err, storage.ErrFKConstraint):
 		log.Error("user has never signed up")
-		return nil, ero.NewClient(ErrSignupNotExists)
+		return nil, ero.NewClient(ero.CodeNotFound, ErrSignupNotExists)
 	case ero.Has(err, storage.ErrUniqueConstraint):
 		log.Error("session already exists")
-		return nil, ero.NewClient(ErrSessionAlreadyOpened)
+		return nil, ero.NewClient(ero.CodeExists, ErrSessionAlreadyOpened)
 	case err != nil:
 		log.Error("error saving session", slog.String("error", err.Error()))
 		return nil, ero.InternalFrom(op, err)
@@ -82,7 +82,7 @@ func (w *Wrapper) session(ctx context.Context, get getSessionFn, keys ...any) (*
 	switch {
 	case ero.Has(err, storage.ErrEmptyResult):
 		log.Error("session not found")
-		return nil, ero.NewClient(ErrSessionNotExists)
+		return nil, ero.NewClient(ero.CodeNotFound, ErrSessionNotExists)
 	case err != nil:
 		log.Error("error getting session", slog.String("error", err.Error()))
 		return nil, ero.InternalFrom(op, err)
@@ -108,7 +108,7 @@ func (w *Wrapper) SaveSignup(ctx context.Context, signup models.Signup) (*models
 	switch {
 	case ero.Has(err, storage.ErrFKConstraint):
 		log.Error("service does not exist")
-		return nil, ero.NewClient(ErrServiceNotExists)
+		return nil, ero.NewClient(ero.CodeNotFound, ErrServiceNotExists)
 	case ero.Has(err, storage.ErrUniqueConstraint):
 		log.Error("user already signed up, checking details")
 		su, err = w.Storage.SignupByServiceAndUser(ctx, signup.ServiceId, signup.UserId)
@@ -118,13 +118,13 @@ func (w *Wrapper) SaveSignup(ctx context.Context, signup models.Signup) (*models
 		}
 		if su.IsDeleted() {
 			log.Error("signed out")
-			return nil, ero.NewClient(ErrSignedOut)
+			return nil, ero.NewClient(ero.CodeNotFound, ErrSignedOut)
 		}
 		if su.IsBanned() {
 			log.Error("signup banned")
-			return nil, ero.NewClient(ErrSignupBanned)
+			return nil, ero.NewClient(ero.CodePermissionDenied, ErrSignupBanned)
 		}
-		return nil, ero.NewClient(ErrAlreadySignedUp)
+		return nil, ero.NewClient(ero.CodeExists, ErrAlreadySignedUp)
 	case err != nil:
 		log.Error("saving error", slog.String("error", err.Error()))
 		return nil, ero.InternalFrom(op, err)
@@ -163,7 +163,7 @@ func (w *Wrapper) signup(ctx context.Context, get getSignupFn, keys ...any) (*mo
 	switch {
 	case ero.Has(err, storage.ErrEmptyResult):
 		log.Error("signup not found")
-		return nil, ero.NewClient(ErrSignupNotExists)
+		return nil, ero.NewClient(ero.CodeNotFound, ErrSignupNotExists)
 	case err != nil:
 		log.Error("cannot get signup", slog.String("error", err.Error()))
 		return nil, ero.InternalFrom(op, err)
@@ -171,12 +171,12 @@ func (w *Wrapper) signup(ctx context.Context, get getSignupFn, keys ...any) (*mo
 
 	if su.IsDeleted() {
 		log.Error("signed out")
-		return su, ero.NewClient(ErrSignedOut)
+		return su, ero.NewClient(ero.CodeNotFound, ErrSignedOut)
 	}
 
 	if su.IsBanned() {
 		log.Error("signup banned")
-		return su, ero.NewClient(ErrSignupBanned)
+		return su, ero.NewClient(ero.CodePermissionDenied, ErrSignupBanned)
 	}
 
 	log.Info("got signup")
@@ -197,12 +197,12 @@ func (w *Wrapper) SaveUser(ctx context.Context, user *models.User) (*models.Save
 	switch {
 	case ero.Has(err, storage.ErrUniqueConstraint):
 		u, err = w.UserByNickname(ctx, user.Nickname)
-		if err.Has(ErrUserDeleted) {
+		if ero.Has(err, ErrUserDeleted) {
 			log.Error("user deleted", slog.Int64("id", u.Id), slog.String("error", err.Error()))
 			return nil, err
 		}
 		log.Error("user already exists", slog.Int64("id", u.Id))
-		return nil, ero.NewClient(ErrUserAlreadyRegistered)
+		return nil, ero.NewClient(ero.CodeExists, ErrUserAlreadyRegistered)
 	case err != nil:
 		log.Error("cannot save user", slog.String("error", err.Error()))
 		return nil, ero.InternalFrom(op, err)
@@ -272,7 +272,7 @@ func (w *Wrapper) user(ctx context.Context, get getUserFn, key any, keyType stri
 	switch {
 	case ero.Has(err, storage.ErrEmptyResult):
 		log.Error("no user found")
-		return nil, ero.NewClient(ErrInvalidCredentials)
+		return nil, ero.NewClient(ero.CodeBadRequest, ErrInvalidCredentials)
 	case err != nil:
 		log.Error("getting error", slog.String("error", err.Error()))
 		return nil, ero.InternalFrom(op, err)
@@ -280,7 +280,7 @@ func (w *Wrapper) user(ctx context.Context, get getUserFn, key any, keyType stri
 
 	if saved.IsDeleted() {
 		log.Error("user deleted")
-		return saved, ero.NewClient(ErrUserDeleted)
+		return saved, ero.NewClient(ero.CodeNotFound, ErrUserDeleted)
 	}
 
 	return saved, nil

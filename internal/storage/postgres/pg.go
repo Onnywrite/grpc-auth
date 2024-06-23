@@ -52,16 +52,16 @@ func queryError(anyerr error, op string) ero.Error {
 	}
 
 	if errStr, ok := sqlerrToErr[strerr]; ok {
-		return ero.NewClient(errStr)
+		return ero.NewClient(ero.CodeUnknownClient, errStr)
 	}
 
-	return ero.NewServer(op, anyerr.Error())
+	return ero.NewServer(ero.CodeInternal, op, anyerr.Error())
 }
 
 func preparingError(anyerr error, op string) ero.Error {
-	return ero.NewInternal(op, anyerr.Error())
+	return ero.NewInternal(ero.CodeInternal, op, anyerr.Error())
 }
 
 func scanningError(anyerr error, op string) ero.Error {
-	return ero.NewInternal(op, anyerr.Error())
+	return ero.NewInternal(ero.CodeInternal, op, anyerr.Error())
 }

@@ -20,7 +20,7 @@ func ValidateWith(ctx context.Context, validate ValidateFn, structs ...any) ero.
 
 	wg := sync.WaitGroup{}
 	wg.Add(len(structs))
-	errors := ero.New()
+	errors := ero.New(ero.CodeBadRequest)
 
 	v := validator.New()
 	v.RegisterValidation("nickname", validateNickname)
@@ -47,7 +47,7 @@ func ValidateWith(ctx context.Context, validate ValidateFn, structs ...any) ero.
 	wg.Wait()
 	switch {
 	case errors.Has(ErrContextDone):
-		return ero.ServerFrom(op, errors)
+		return ero.ServerFromWithCode(ero.CodeCancelled, op, errors)
 	case len(errors.Errors) > 0:
 		return ero.ClientFrom(errors)
 	default:
