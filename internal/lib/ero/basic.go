@@ -13,18 +13,21 @@ const (
 type Error interface {
 	error
 	Has(errText string) bool
+	GetCode() int
 }
 
 type Basic struct {
 	Service string
 	Errors  []string
+	Code    int
 	mu      *sync.Mutex
 }
 
-func New(errs ...string) *Basic {
+func New(code int, errs ...string) *Basic {
 	return &Basic{
 		Service: CurrentService,
 		Errors:  errs,
+		Code:    code,
 		mu:      &sync.Mutex{},
 	}
 }
@@ -41,12 +44,8 @@ func (e Basic) Unwrap() error {
 	return e
 }
 
-func (e *Basic) lock() {
-	e.mu.Lock()
-}
-
-func (e *Basic) unlock() {
-	e.mu.Unlock()
+func (e Basic) GetCode() int {
+	return e.Code
 }
 
 func (e *Basic) Add(err ...string) *Basic {
@@ -54,9 +53,6 @@ func (e *Basic) Add(err ...string) *Basic {
 	e.addWithoutLock(err...)
 	e.unlock()
 	return e
-}
-func (e *Basic) addWithoutLock(err ...string) {
-	e.Errors = append(e.Errors, err...)
 }
 
 func (e *Basic) Has(errText string) bool {
@@ -70,6 +66,18 @@ func Has(err Error, errText string) bool {
 		return err.Has(errText)
 	}
 	return false
+}
+
+func (e *Basic) lock() {
+	e.mu.Lock()
+}
+
+func (e *Basic) unlock() {
+	e.mu.Unlock()
+}
+
+func (e *Basic) addWithoutLock(err ...string) {
+	e.Errors = append(e.Errors, err...)
 }
 
 // TODO: ero.HasAll, ero.HasAny
