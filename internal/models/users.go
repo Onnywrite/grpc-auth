@@ -23,6 +23,7 @@ func (u *SavedUser) IsDeleted() bool {
 }
 
 type Profile struct {
+	Id       int64
 	Nickname string
 	Email    *string
 	Phone    *string
